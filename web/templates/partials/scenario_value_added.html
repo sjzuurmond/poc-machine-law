@@ -1,0 +1,38 @@
+<div class="fixed inset-0 flex items-center justify-center z-[100]">
+    <div class="bg-white border-2 border-purple-500 rounded-lg shadow-xl p-6 max-w-md">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="text-4xl">✅</span>
+            <div>
+                <h3 class="text-lg font-bold text-purple-900">Scenario waarde toegevoegd!</h3>
+                <p class="text-sm text-gray-600">De berekening wordt opnieuw uitgevoerd</p>
+            </div>
+        </div>
+
+        <div class="bg-purple-50 p-3 rounded-lg mb-4">
+            <div class="text-sm">
+                <span class="font-medium text-purple-900">{{ label or key }}</span>
+                <span class="text-gray-500 mx-2">→</span>
+                <span class="text-purple-900 font-semibold">
+                    {% if value is boolean %}
+                        {{ 'Ja' if value else 'Nee' }}
+                    {% else %}
+                        {{ value }}
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        <p class="text-xs text-gray-600 mb-4">
+            💡 Dit venster sluit automatisch en de resultaten worden bijgewerkt...
+        </p>
+
+        <!-- Auto-close after 2 seconds -->
+        <script>
+            setTimeout(() => {
+                document.querySelector('.fixed.inset-0').remove();
+                // Trigger page reload to show updated calculation
+                window.location.reload();
+            }, 2000);
+        </script>
+    </div>
+</div>

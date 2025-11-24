@@ -1,0 +1,152 @@
+<div class="fixed inset-0 bg-gray-600/50 overflow-y-auto h-full w-full z-[100]"
+     id="scenario-modal"
+     x-data='{
+         currentValue: {{ current_value|tojson if current_value else "null" }},
+         newValue: {{ existing_value.value|tojson if existing_value else (current_value|tojson if current_value else "null") }},
+         valueType: "{{ type_hint or "auto" }}"
+     }'>
+
+    <div class="relative top-20 mx-auto p-6 border border-gray-500/75 w-[600px] shadow-lg rounded-lg bg-white z-[100]">
+
+        <!-- Close button -->
+        <button @click="document.getElementById('scenario-modal').remove()"
+                class="float-right text-gray-500 hover:text-gray-700 cursor-pointer">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+
+        <!-- Header -->
+        <div class="mb-6">
+            <h3 class="text-xl font-semibold text-purple-900 flex items-center gap-2">
+                <span>🧪</span>
+                <span>Scenario waarde instellen</span>
+            </h3>
+            <p class="text-sm text-gray-600 mt-2">
+                Test een andere waarde voor <strong>{{ label }}</strong> zonder permanente wijziging
+            </p>
+
+            {% if existing_value %}
+            <div class="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <p class="text-sm text-purple-800">
+                    💡 Er bestaat al een scenario waarde voor dit veld. Deze wordt overschreven.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Form -->
+        <form hx-post="/scenarios/value/set"
+              hx-target="#scenario-modal"
+              hx-swap="outerHTML">
+
+            <input type="hidden" name="bsn" value="{{ bsn }}">
+            <input type="hidden" name="service" value="{{ service }}">
+            <input type="hidden" name="law" value="{{ law }}">
+            <input type="hidden" name="key" value="{{ key }}">
+            <input type="hidden" name="label" value="{{ label }}">
+            <input type="hidden" name="scenario_name" value="{{ scenario_name }}">
+            {% if type_hint %}<input type="hidden" name="type_hint" value="{{ type_hint }}">{% endif %}
+
+            <div class="space-y-4">
+                <!-- Current value display -->
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Huidige officiële waarde
+                    </label>
+                    <div class="text-gray-900 font-medium">
+                        <template x-if="typeof currentValue === 'boolean'">
+                            <span x-text="currentValue ? 'Ja' : 'Nee'"></span>
+                        </template>
+                        <template x-if="typeof currentValue === 'number'">
+                            <span x-text="currentValue"></span>
+                        </template>
+                        <template x-if="typeof currentValue === 'string'">
+                            <span x-text="currentValue"></span>
+                        </template>
+                        <template x-if="currentValue === null">
+                            <span class="text-gray-500 italic">Geen waarde</span>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- New value input -->
+                <div class="bg-purple-50 p-4 rounded-lg">
+                    <label for="scenario-value" class="block text-sm font-medium text-purple-900 mb-2">
+                        Test waarde (scenario)
+                    </label>
+
+                    {% if type_hint == 'boolean' or (current_value is boolean) %}
+                        <select id="scenario-value"
+                                name="value"
+                                class="px-3 py-2 block w-full border-purple-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                                x-model="newValue">
+                            <option value="true">Ja</option>
+                            <option value="false">Nee</option>
+                        </select>
+
+                    {% elif type_hint == 'number' or (current_value is number) %}
+                        <input type="number"
+                               id="scenario-value"
+                               name="value"
+                               step="any"
+                               class="px-3 py-2 block w-full border-purple-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                               x-model="newValue"
+                               required>
+
+                    {% elif type_hint == 'date' %}
+                        <input type="date"
+                               id="scenario-value"
+                               name="value"
+                               class="px-3 py-2 block w-full border-purple-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                               x-model="newValue"
+                               required>
+
+                    {% else %}
+                        <!-- Default: text input -->
+                        <input type="text"
+                               id="scenario-value"
+                               name="value"
+                               class="px-3 py-2 block w-full border-purple-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+                               x-model="newValue"
+                               placeholder="Voer nieuwe waarde in..."
+                               required>
+                    {% endif %}
+
+                    <p class="mt-2 text-xs text-purple-700">
+                        Deze waarde wordt alleen tijdelijk gebruikt voor berekeningen
+                    </p>
+                </div>
+
+                <!-- Info box -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div class="flex gap-2">
+                        <span class="text-blue-600">ℹ️</span>
+                        <div class="text-sm text-blue-800">
+                            <p class="font-medium mb-1">Over scenario's:</p>
+                            <ul class="list-disc list-inside space-y-1 text-xs">
+                                <li>Geen permanente wijziging - alleen voor test</li>
+                                <li>Wordt niet opgeslagen in database</li>
+                                <li>Verdwijnt na uitloggen</li>
+                                <li>Kan later geconverteerd naar officiële aanvraag</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex justify-end gap-3 mt-6">
+                <button type="button"
+                        class="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                        @click="document.getElementById('scenario-modal').remove()">
+                    Annuleren
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700">
+                    🧪 Scenario toepassen
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

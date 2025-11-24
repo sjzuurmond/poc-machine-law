@@ -12,6 +12,7 @@ from explain.llm_factory import llm_factory
 from web.dependencies import TODAY, get_case_manager, get_claim_manager, get_engine_id, get_machine_service, templates
 from web.engines import CaseManagerInterface, ClaimManagerInterface, EngineInterface, RuleResult
 from web.feature_flags import is_wallet_enabled
+from web.helpers.scenario_helpers import get_evaluation_overrides, has_active_scenarios
 
 router = APIRouter(prefix="/laws", tags=["laws"])
 
@@ -40,29 +41,44 @@ def evaluate_law(
     approved: bool = True,
     claim_manager: ClaimManagerInterface | None = None,
     effective_date: str | None = None,
+    request: Request | None = None,
+    use_scenarios: bool = False,
+    scenario_name: str = "default",
 ) -> tuple[str, RuleResult, dict[str, Any]]:
-    """Evaluate a law for a given BSN"""
+    """
+    Evaluate a law for a given BSN.
 
-    logger.warn(f"evalute law {service} {law} for {bsn}")
+    Args:
+        bsn: BSN of the person
+        law: Law to evaluate
+        service: Service that owns the law
+        machine_service: Engine interface
+        approved: Whether to use only approved values
+        claim_manager: Claim manager for getting pending claims
+        effective_date: Optional effective date for calculation
+        request: FastAPI request (for session access)
+        use_scenarios: Whether to use scenario values from session
+        scenario_name: Name of scenario to use
+
+    Returns:
+        Tuple of (law, result, parameters)
+    """
+
+    logger.warn(f"evaluate law {service} {law} for {bsn} (scenarios={use_scenarios})")
 
     parameters = {"BSN": bsn}
-    overwrite_input = None
 
-    # If not approved (i.e., showing pending changes), get claims and apply them as overwrites
-    if not approved and claim_manager:
-        claims = claim_manager.get_claims_by_bsn(bsn, include_rejected=False)
-        # Filter claims for this service and law that are pending or approved
-        relevant_claims = [
-            claim
-            for claim in claims
-            if claim.service == service and claim.law == law and claim.status in ["PENDING", "APPROVED"]
-        ]
-
-        # Build overwrite_input from claims
-        if relevant_claims:
-            overwrite_input = {}
-            for claim in relevant_claims:
-                overwrite_input[claim.key] = claim.new_value
+    # Get overrides from claims and/or scenarios
+    overwrite_input = get_evaluation_overrides(
+        request=request,
+        bsn=bsn,
+        service=service,
+        law=law,
+        approved=approved,
+        claim_manager=claim_manager,
+        use_scenarios=use_scenarios,
+        scenario_name=scenario_name,
+    )
 
     # Execute the law using EngineInterface
     result = machine_service.evaluate(
@@ -99,18 +115,33 @@ async def execute_law(
     law: str,
     bsn: str,
     date: str = None,
+    use_scenarios: bool = False,
+    scenario_name: str = "default",
     case_manager: CaseManagerInterface = Depends(get_case_manager),
     claim_manager: ClaimManagerInterface = Depends(get_claim_manager),
     machine_service: EngineInterface = Depends(get_machine_service),
 ):
-    """Execute a law and render its result"""
+    """
+    Execute a law and render its result.
 
-    logger.warn(f"[LAWS] execute {service} {law}")
+    Can optionally use scenario values from session for what-if calculations.
+    """
+
+    logger.warn(f"[LAWS] execute {service} {law} (scenarios={use_scenarios})")
 
     try:
         law = unquote(law)
         law, result, parameters = evaluate_law(
-            bsn, law, service, machine_service, approved=False, claim_manager=claim_manager, effective_date=date
+            bsn=bsn,
+            law=law,
+            service=service,
+            machine_service=machine_service,
+            approved=False,
+            claim_manager=claim_manager,
+            effective_date=date,
+            request=request,
+            use_scenarios=use_scenarios,
+            scenario_name=scenario_name,
         )
 
     except Exception as e:
@@ -138,6 +169,9 @@ async def execute_law(
 
     logger.warn(f"[LAWS] result {result}")
 
+    # Check if scenarios are active
+    scenario_active = has_active_scenarios(request, bsn, scenario_name) if use_scenarios else False
+
     return templates.TemplateResponse(
         template_path,
         {
@@ -151,6 +185,9 @@ async def execute_law(
             "requirements_met": result.requirements_met,
             "missing_required": result.missing_required,
             "current_case": existing_case,
+            "use_scenarios": use_scenarios,
+            "scenario_active": scenario_active,
+            "scenario_name": scenario_name,
         },
     )
 
