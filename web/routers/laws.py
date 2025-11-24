@@ -555,6 +555,9 @@ async def simulate_scenario(
             law = service_law["law"]
 
             try:
+                # DEBUG: Log what we're sending
+                logger.info(f"Simulating {service}/{law} with scenario_data: {scenario_data}")
+
                 # Evaluate the law with scenario data as overwrite_input
                 result = machine_service.evaluate(
                     service=service,
@@ -565,6 +568,13 @@ async def simulate_scenario(
                     approved=False,
                     overwrite_input=scenario_data,
                 )
+
+                # DEBUG: Log what input was actually used
+                logger.info(f"Evaluation result for {service}/{law}:")
+                logger.info(f"  - Input used: {result.input}")
+                logger.info(f"  - Output: {result.output}")
+                logger.info(f"  - Requirements met: {result.requirements_met}")
+                logger.info(f"  - Missing required: {result.missing_required}")
 
                 rule_spec = machine_service.get_rule_spec(law, TODAY, service)
 
@@ -581,6 +591,8 @@ async def simulate_scenario(
                         "requirements_met": result.requirements_met,
                         "missing_required": result.missing_required,
                         "thresholds": thresholds,  # Add threshold information
+                        # DEBUG: Include scenario_data in response for comparison
+                        "debug_scenario_data": scenario_data,
                     }
                 )
             except Exception as e:
