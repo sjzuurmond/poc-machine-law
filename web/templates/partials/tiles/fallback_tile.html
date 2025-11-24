@@ -4,12 +4,21 @@
         {% if result %}
             {% for key, value in result.items() %}
                 {% if value is not none and value is not mapping %}
-                    <div class="mb-2">
-                        <span class="font-medium">{{ key|replace('_', ' ') |title }}:</span>
-                        {% if value is boolean %}
-                            {{ 'Ja' if value else 'Nee' }}
-                        {% else %}
-                            {{ value }}
+                    <div class="mb-2 flex items-center justify-between">
+                        <div>
+                            <span class="font-medium">{{ key|replace('_', ' ') |title }}:</span>
+                            {% if value is boolean %}
+                                {{ 'Ja' if value else 'Nee' }}
+                            {% else %}
+                                {{ value }}
+                            {% endif %}
+                        </div>
+                        {% if use_scenarios %}
+                            <button hx-get="/scenarios/form?bsn={{ bsn }}&service={{ service }}&law={{ law|urlencode }}&key={{ key }}&current_value={{ value|tojson }}&label={{ (key|replace('_', ' ')|title)|urlencode }}"
+                                    hx-target="#modal-container"
+                                    class="text-xs text-purple-600 hover:text-purple-800 ml-2">
+                                🧪 Test
+                            </button>
                         {% endif %}
                     </div>
                 {% endif %}

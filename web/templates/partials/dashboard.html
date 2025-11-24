@@ -345,11 +345,22 @@
     </div>
 </section>
 <!-- Laws Grid -->
-<section class="mb-8">
-    <h3 class="font-semibold text-lg mb-4">Berekende regelingen</h3>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
+<section class="mb-8" x-data="{ scenarioMode: localStorage.getItem('scenario-mode') === 'true' }">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold text-lg">Berekende regelingen</h3>
+        <label class="inline-flex items-center cursor-pointer">
+            <span class="mr-2 text-sm text-gray-700">🧪 Scenario modus</span>
+            <input type="checkbox"
+                   class="sr-only peer"
+                   x-model="scenarioMode"
+                   @change="localStorage.setItem('scenario-mode', scenarioMode); location.reload()">
+            <div class="relative w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-purple-600 peer-focus:ring-2 peer-focus:ring-purple-300 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+        </label>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr" x-init="$el.dataset.scenarioMode = scenarioMode">
         {% for law in discoverable_service_laws %}
             <div hx-get="/laws/execute?service={{ law['service'] }}&law={{ law['law']|urlencode }}&bsn={{ bsn }}{% if request.query_params.get('date') %}&date={{ request.query_params.get("date") }}{% endif %}"
+                 :hx-get="scenarioMode ? '/laws/execute?service={{ law['service'] }}&law={{ law['law']|urlencode }}&bsn={{ bsn }}{% if request.query_params.get('date') %}&date={{ request.query_params.get("date") }}{% endif %}&use_scenarios=true' : '/laws/execute?service={{ law['service'] }}&law={{ law['law']|urlencode }}&bsn={{ bsn }}{% if request.query_params.get('date') %}&date={{ request.query_params.get("date") }}{% endif %}'"
                  hx-trigger="load"
                  hx-swap="outerHTML"
                  class="h-full bg-white rounded-lg shadow">{% include "partials/loading.html" %}</div>

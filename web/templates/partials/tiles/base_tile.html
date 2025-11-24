@@ -3,6 +3,10 @@
      x-data="{ showExplanation: false }"
      @close-explanation.window="showExplanation = false"
      id="tile-{{ law|replace('/', '-') }}">
+    {% if use_scenarios and scenario_active %}
+        {% set scenario = {"total_values": 0, "relevant_values": []} %}
+        {% include "partials/scenario_panel.html" %}
+    {% endif %}
     <div class="p-6 flex flex-col h-full">
         {% if error %}
             <div class="flex-grow space-y-6">
