@@ -1482,6 +1482,16 @@
           // =================================================================
           const actionSuggestions2 = this.renderInteractiveActionSuggestions(result, scenarioData);
 
+          // =================================================================
+          // TIJDSAFHANKELIJK REKENEN IMPLEMENTATION 1: Yearly Impact Summary
+          // =================================================================
+          const timeCalculation1 = this.renderYearlyImpactSummary(result, scenarioData);
+
+          // =================================================================
+          // TIJDSAFHANKELIJK REKENEN IMPLEMENTATION 2: Monthly Breakdown
+          // =================================================================
+          const timeCalculation2 = this.renderMonthlyBreakdown(result, scenarioData);
+
           resultDiv.innerHTML = `
             <h5 class="font-semibold mb-3 text-gray-900">${result.law_name}</h5>
             ${statusHtml}
@@ -1492,6 +1502,8 @@
             ${whyExplanation2}
             ${actionSuggestions1}
             ${actionSuggestions2}
+            ${timeCalculation1}
+            ${timeCalculation2}
             ${outputHtml ? `<div class="text-sm text-gray-700 space-y-1">${outputHtml}</div>` : ""}
           `;
         }
@@ -1989,6 +2001,153 @@
           }, 500);
         }
       }
+    }
+
+    // =================================================================
+    // TIJDSAFHANKELIJK REKENEN IMPLEMENTATION 1: Yearly Impact Summary
+    // Shows yearly totals and when changes take effect
+    // =================================================================
+    renderYearlyImpactSummary(result, scenarioData) {
+      // Only show for successful evaluations with outputs
+      if (!result.requirements_met || !result.output) return "";
+
+      // Check if there are any monthly amounts to calculate yearly impact
+      let yearlyTotal = 0;
+      let monthlyAmount = null;
+      let hasMonthlyData = false;
+
+      // Try to find monthly benefit amount
+      Object.entries(result.output).forEach(([key, value]) => {
+        if (typeof value === 'number' && value > 0) {
+          // Assume it's a monthly amount (this should ideally come from backend metadata)
+          monthlyAmount = value;
+          yearlyTotal = value * 12;
+          hasMonthlyData = true;
+        }
+      });
+
+      if (!hasMonthlyData) return "";
+
+      const currentDate = new Date();
+      const currentMonth = currentDate.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' });
+
+      return `
+        <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
+          <h6 class="text-xs font-semibold text-orange-900 mb-2 flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+            </svg>
+            Jaarlijks overzicht
+          </h6>
+          <div class="space-y-2 text-xs text-orange-800">
+            <div class="bg-white rounded p-2 border border-orange-100">
+              <div class="flex justify-between items-center">
+                <span class="text-gray-600">Per maand:</span>
+                <span class="font-bold text-orange-900">€${(monthlyAmount / 100).toFixed(2)}</span>
+              </div>
+            </div>
+            <div class="bg-white rounded p-2 border border-orange-100">
+              <div class="flex justify-between items-center">
+                <span class="text-gray-600">Per jaar (12 maanden):</span>
+                <span class="font-bold text-lg text-orange-900">€${(yearlyTotal / 100).toFixed(2)}</span>
+              </div>
+            </div>
+            <div class="bg-orange-100 rounded p-2 mt-2">
+              <p class="text-xs text-orange-900">
+                📅 <strong>Ingangsdatum:</strong> ${currentMonth}<br/>
+                <span class="text-orange-700 mt-1 inline-block">
+                  Wijzigingen in uw situatie worden meestal de volgende maand verwerkt.
+                </span>
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // =================================================================
+    // TIJDSAFHANKELIJK REKENEN IMPLEMENTATION 2: Monthly Breakdown
+    // Shows month-by-month impact with timeline
+    // =================================================================
+    renderMonthlyBreakdown(result, scenarioData) {
+      // Only show for successful evaluations with outputs
+      if (!result.requirements_met || !result.output) return "";
+
+      // Extract monthly benefit amount
+      let monthlyAmount = null;
+      Object.entries(result.output).forEach(([key, value]) => {
+        if (typeof value === 'number' && value > 0) {
+          monthlyAmount = value;
+        }
+      });
+
+      if (!monthlyAmount) return "";
+
+      // Generate next 6 months
+      const months = [];
+      const currentDate = new Date();
+
+      for (let i = 1; i <= 6; i++) {
+        const futureDate = new Date(currentDate);
+        futureDate.setMonth(currentDate.getMonth() + i);
+
+        months.push({
+          name: futureDate.toLocaleDateString('nl-NL', { month: 'short', year: 'numeric' }),
+          amount: monthlyAmount,
+          isFirst: i === 1
+        });
+      }
+
+      let breakdownHtml = `
+        <div class="bg-pink-50 border border-pink-200 rounded-lg p-4 mb-3">
+          <h6 class="text-sm font-semibold text-pink-900 mb-3 flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+            </svg>
+            Maandelijkse uitkering (komende 6 maanden)
+          </h6>
+          <div class="space-y-2">
+      `;
+
+      let cumulativeTotal = 0;
+      months.forEach((month, index) => {
+        cumulativeTotal += month.amount;
+        const barWidth = 100; // All months same amount
+
+        breakdownHtml += `
+          <div class="bg-white rounded p-2 border ${month.isFirst ? 'border-pink-400 shadow-sm' : 'border-pink-100'}">
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-xs font-medium text-gray-700">
+                ${month.name}
+                ${month.isFirst ? '<span class="ml-1 text-pink-600 font-bold">← Volgende maand</span>' : ''}
+              </span>
+              <span class="text-xs font-bold text-pink-900">€${(month.amount / 100).toFixed(2)}</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-1.5">
+              <div class="bg-gradient-to-r from-pink-400 to-pink-600 h-1.5 rounded-full transition-all duration-300" style="width: ${barWidth}%"></div>
+            </div>
+          </div>
+        `;
+      });
+
+      breakdownHtml += `
+          </div>
+          <div class="bg-pink-100 rounded p-3 mt-3 border border-pink-200">
+            <div class="flex justify-between items-center">
+              <span class="text-xs font-semibold text-pink-900">Totaal (6 maanden):</span>
+              <span class="text-sm font-bold text-pink-900">€${(cumulativeTotal / 100).toFixed(2)}</span>
+            </div>
+          </div>
+          <p class="text-xs text-pink-700 mt-3 flex items-start">
+            <svg class="w-3 h-3 mr-1 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+            </svg>
+            <span>Dit is een indicatie op basis van uw huidige gegevens. Werkelijke bedragen kunnen afwijken.</span>
+          </p>
+        </div>
+      `;
+
+      return breakdownHtml;
     }
 
     // Helper method to get thresholds from result data
