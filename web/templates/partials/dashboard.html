@@ -1462,12 +1462,24 @@
           // =================================================================
           const thresholdIndicator3 = this.renderInteractiveThresholdExplorer(result, scenarioData);
 
+          // =================================================================
+          // WAAROM IMPLEMENTATION 1: Simple Explanation
+          // =================================================================
+          const whyExplanation1 = this.renderSimpleWhyExplanation(result, scenarioData);
+
+          // =================================================================
+          // WAAROM IMPLEMENTATION 2: Detailed Requirement Analysis
+          // =================================================================
+          const whyExplanation2 = this.renderDetailedWhyExplanation(result, scenarioData);
+
           resultDiv.innerHTML = `
             <h5 class="font-semibold mb-3 text-gray-900">${result.law_name}</h5>
             ${statusHtml}
             ${thresholdIndicator1}
             ${thresholdIndicator2}
             ${thresholdIndicator3}
+            ${whyExplanation1}
+            ${whyExplanation2}
             ${outputHtml ? `<div class="text-sm text-gray-700 space-y-1">${outputHtml}</div>` : ""}
           `;
         }
@@ -1617,6 +1629,180 @@
           </p>
         </div>
       `;
+    }
+
+    // =================================================================
+    // WAAROM IMPLEMENTATION 1: Simple Explanation
+    // Shows basic explanation of why requirements aren't met
+    // =================================================================
+    renderSimpleWhyExplanation(result, scenarioData) {
+      // Only show for failed requirements
+      if (result.requirements_met) return "";
+
+      let explanationHtml = `
+        <div class="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-3">
+          <h6 class="text-xs font-semibold text-purple-900 mb-2 flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+            </svg>
+            Waarom kom ik niet in aanmerking?
+          </h6>
+          <div class="text-xs text-purple-800 space-y-2">
+      `;
+
+      // Check if missing required fields
+      if (result.missing_required && result.missing_required.length > 0) {
+        explanationHtml += `
+          <div>
+            <p class="font-medium mb-1">Er ontbreken gegevens:</p>
+            <ul class="list-disc list-inside ml-2 space-y-0.5">
+              ${result.missing_required.map(field => {
+                const displayField = field.replace(/_/g, " ");
+                return `<li>We hebben uw <strong>${displayField}</strong> nodig om te bepalen of u in aanmerking komt</li>`;
+              }).join("")}
+            </ul>
+          </div>
+        `;
+      }
+
+      // Check thresholds
+      const thresholds = this.calculateThresholds(result);
+      if (thresholds && thresholds.length > 0) {
+        const failedThresholds = thresholds.filter(t => {
+          return t.currentValue > t.thresholdValue;
+        });
+
+        if (failedThresholds.length > 0) {
+          explanationHtml += `
+            <div>
+              <p class="font-medium mb-1">Uw inkomen is te hoog:</p>
+              ${failedThresholds.map(t => {
+                const overshoot = t.currentValue - t.thresholdValue;
+                return `
+                  <p class="ml-2">
+                    Uw inkomen van <strong>€${(t.currentValue / 100).toFixed(0)}</strong>
+                    ligt €${(overshoot / 100).toFixed(0)} boven de maximale grens van
+                    <strong>€${(t.thresholdValue / 100).toFixed(0)}</strong>.
+                  </p>
+                `;
+              }).join("")}
+            </div>
+          `;
+        }
+      }
+
+      explanationHtml += `
+          </div>
+        </div>
+      `;
+
+      return explanationHtml;
+    }
+
+    // =================================================================
+    // WAAROM IMPLEMENTATION 2: Detailed Requirement Analysis
+    // Shows detailed breakdown of each requirement with actionable insights
+    // =================================================================
+    renderDetailedWhyExplanation(result, scenarioData) {
+      // Only show for failed requirements
+      if (result.requirements_met) return "";
+
+      let explanationHtml = `
+        <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-3">
+          <h6 class="text-sm font-semibold text-indigo-900 mb-3 flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+              <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+            </svg>
+            Gedetailleerde analyse
+          </h6>
+          <div class="space-y-3">
+      `;
+
+      // Missing data analysis
+      if (result.missing_required && result.missing_required.length > 0) {
+        explanationHtml += `
+          <div class="bg-white rounded p-3 border border-indigo-100">
+            <h6 class="text-xs font-bold text-indigo-900 mb-2">📋 Ontbrekende gegevens</h6>
+            <div class="space-y-2 text-xs text-gray-700">
+              ${result.missing_required.map(field => {
+                const displayField = field.replace(/_/g, " ");
+                const explanation = this.getFieldExplanation(field);
+                return `
+                  <div class="border-l-2 border-indigo-300 pl-2">
+                    <p class="font-medium text-indigo-800">${displayField}</p>
+                    <p class="text-gray-600 mt-0.5">${explanation}</p>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      // Threshold analysis
+      const thresholds = this.calculateThresholds(result);
+      if (thresholds && thresholds.length > 0) {
+        const failedThresholds = thresholds.filter(t => t.currentValue > t.thresholdValue);
+
+        if (failedThresholds.length > 0) {
+          explanationHtml += `
+            <div class="bg-white rounded p-3 border border-indigo-100">
+              <h6 class="text-xs font-bold text-indigo-900 mb-2">💰 Inkomensgrens overschreden</h6>
+              <div class="space-y-3 text-xs">
+                ${failedThresholds.map(t => {
+                  const overshoot = t.currentValue - t.thresholdValue;
+                  const percentage = ((overshoot / t.thresholdValue) * 100).toFixed(1);
+                  return `
+                    <div class="border-l-2 border-red-300 pl-2">
+                      <p class="font-medium text-red-800">${t.name}</p>
+                      <div class="mt-1 space-y-1 text-gray-700">
+                        <p>• Uw inkomen: <strong>€${(t.currentValue / 100).toFixed(0)}</strong></p>
+                        <p>• Maximum toegestaan: <strong>€${(t.thresholdValue / 100).toFixed(0)}</strong></p>
+                        <p>• Overschrijding: <strong class="text-red-700">€${(overshoot / 100).toFixed(0)} (${percentage}%)</strong></p>
+                        ${t.description ? `<p class="text-gray-600 italic mt-1">${t.description}</p>` : ""}
+                      </div>
+                    </div>
+                  `;
+                }).join("")}
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      // General explanation
+      explanationHtml += `
+          <div class="bg-blue-50 rounded p-2 text-xs text-blue-800 border border-blue-100">
+            <p class="flex items-start">
+              <svg class="w-4 h-4 mr-1 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+              </svg>
+              <span>Pas uw gegevens aan in het formulier aan de linkerkant om te zien of u dan wel in aanmerking komt.</span>
+            </p>
+          </div>
+        </div>
+      </div>
+      `;
+
+      return explanationHtml;
+    }
+
+    // Helper to provide user-friendly explanations for fields
+    getFieldExplanation(field) {
+      const explanations = {
+        'toetsingsinkomen': 'Dit is uw verzamelinkomen gebruikt voor toetsing aan inkomenseisen',
+        'loon_uit_dienstbetrekking': 'Uw jaarsalaris uit werk in loondienst',
+        'winst_uit_onderneming': 'Winst die u maakt als zelfstandig ondernemer',
+        'huurprijs': 'De maandelijkse huurprijs van uw woning (kale huur)',
+        'woningtype': 'Het type woning waarin u woont (huur/koop)',
+        'partner_toetsingsinkomen': 'Het toetsingsinkomen van uw partner',
+        'huishoudentype': 'Of u alleenstaand bent of samen met een partner',
+        'aantal_kinderen': 'Het aantal kinderen waarvoor u zorgt',
+        'leeftijd': 'Uw leeftijd is relevant voor bepaalde regelingen',
+      };
+
+      return explanations[field] || 'Deze gegevens zijn nodig voor de berekening van uw recht op deze regeling';
     }
 
     // Helper method to get thresholds from result data
