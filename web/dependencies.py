@@ -126,6 +126,61 @@ def setup_jinja_env(directory: str) -> Jinja2Templates:
 
     templates.env.filters["format_currency"] = format_currency
 
+    def format_field_value(field_info: dict) -> str:
+        """
+        Format an output field value based on its type.
+
+        Args:
+            field_info: Dictionary with 'value' and 'type' keys
+
+        Returns:
+            Formatted string representation
+        """
+        if not field_info or "value" not in field_info:
+            return "N/A"
+
+        value = field_info["value"]
+        field_type = field_info.get("type", "unknown")
+
+        # Handle None/null values
+        if value is None:
+            return "N/A"
+
+        # Handle boolean values
+        if field_type == "boolean":
+            return "Ja" if value else "Nee"
+
+        # Handle amounts (monetary values in cents)
+        if field_type == "amount":
+            if isinstance(value, (int, float)):
+                # Amounts in the system are in cents, convert to euros
+                euro_value = value / 100
+                try:
+                    return locale.currency(euro_value, grouping=True).replace("Eu", "€")
+                except (ValueError, locale.Error):
+                    # Fallback formatting
+                    sign = "-" if euro_value < 0 else ""
+                    abs_value = abs(euro_value)
+                    formatted = f"{abs_value:,.2f}"
+                    formatted = formatted.replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
+                    return f"{sign}€ {formatted}"
+
+        # Handle regular numbers
+        if field_type == "number":
+            if isinstance(value, float):
+                formatted = f"{value:,.2f}"
+                return formatted.replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
+            return str(value)
+
+        # Handle dates
+        if field_type == "date":
+            return str(value)
+
+        # Default: return as string
+        return str(value)
+
+    templates.env.filters["format_field_value"] = format_field_value
+
     return templates
 
 

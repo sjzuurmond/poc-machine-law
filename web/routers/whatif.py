@@ -99,6 +99,106 @@ def extract_missing_fields(result: RuleResult, machine_service: EngineInterface)
     return missing_fields
 
 
+def get_primary_output_field(
+    result: RuleResult, rule_spec: dict[str, Any], service: str, law: str
+) -> dict[str, Any] | None:
+    """
+    Extract the primary output field from a law evaluation result.
+
+    Looks for output fields marked with citizen_relevance: primary and extracts
+    the value along with its type information for proper formatting.
+
+    Args:
+        result: The RuleResult from law evaluation
+        rule_spec: The rule specification dictionary
+        service: Service name (for display)
+        law: Law name (for display)
+
+    Returns:
+        Dictionary with field info or None if no primary field found:
+        {
+            'name': field name,
+            'value': field value,
+            'type': field type (amount, boolean, number, etc),
+            'temporal': temporal info (for converting to monthly/yearly),
+            'display_name': human-readable name
+        }
+    """
+    if not result.output or not rule_spec:
+        return None
+
+    # Get output definitions from rule spec
+    output_definitions = rule_spec.get("properties", {}).get("output", [])
+
+    # Find primary output field
+    for output_def in output_definitions:
+        if output_def.get("citizen_relevance") == "primary":
+            field_name = output_def.get("name")
+            if field_name and field_name in result.output:
+                return {
+                    "name": field_name,
+                    "value": result.output[field_name],
+                    "type": output_def.get("type", "unknown"),
+                    "temporal": output_def.get("temporal", {}),
+                    "display_name": output_def.get("title") or field_name,
+                }
+
+    # Fallback: return first output field if no primary field found
+    if result.output:
+        first_field = next(iter(result.output.items()))
+        return {
+            "name": first_field[0],
+            "value": first_field[1],
+            "type": "unknown",
+            "temporal": {},
+            "display_name": first_field[0],
+        }
+
+    return None
+
+
+def format_output_value(field_info: dict[str, Any]) -> str:
+    """
+    Format an output value based on its type.
+
+    Args:
+        field_info: Dictionary with field type and value info
+
+    Returns:
+        Formatted string representation
+    """
+    value = field_info["value"]
+    field_type = field_info["type"]
+
+    # Handle None/null values
+    if value is None:
+        return "N/A"
+
+    # Handle boolean values
+    if field_type == "boolean":
+        return "Ja" if value else "Nee"
+
+    # Handle amounts (monetary values in cents)
+    if field_type == "amount":
+        if isinstance(value, (int, float)):
+            # Amounts in the system are in cents, convert to euros
+            euro_value = value / 100
+            return f"€ {euro_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    # Handle regular numbers
+    if field_type == "number":
+        if isinstance(value, float):
+            return f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return str(value)
+
+    # Handle dates
+    if field_type == "date":
+        return str(value)
+
+    # Default: return as string
+    return str(value)
+
+
 
 @router.get("/direct-manipulation", response_class=HTMLResponse)
 async def direct_manipulation_panel(
@@ -224,10 +324,19 @@ async def calculate_direct_manipulation(
                 # Extract missing fields if any
                 missing_fields = extract_missing_fields(result, machine_service)
 
+                # Get rule spec for type information
+                try:
+                    rule_spec = machine_service.get_rule_spec(law, TODAY, service)
+                    primary_field = get_primary_output_field(result, rule_spec, service, law)
+                except Exception as e:
+                    logger.warning(f"Failed to get rule spec for {law}: {e}")
+                    primary_field = None
+
                 results[law] = {
                     "result": result,
                     "service": service,
                     "missing_fields": missing_fields,
+                    "primary_field": primary_field,
                 }
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
