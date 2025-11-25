@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="/whatif?bsn={{ bsn }}" class="text-blue-600 hover:text-blue-800 mb-2 inline-block">
+            ← Terug naar scenario's
+        </a>
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Levenssituaties</h1>
+        <p class="text-gray-600">
+            Kies een veelvoorkomende situatie en zie hoe deze je toeslagen beïnvloedt
+        </p>
+    </div>
+
+    <!-- Scenario cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        {% for scenario_id, scenario in scenarios.items() %}
+            <button
+                hx-get="/whatif/templates/{{ scenario_id }}?bsn={{ bsn }}"
+                hx-target="#scenario-form"
+                hx-swap="innerHTML"
+                class="text-left p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-gray-100 hover:border-blue-500">
+                <div class="text-4xl mb-3">{{ scenario.icon }}</div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ scenario.title }}</h3>
+                <p class="text-sm text-gray-600">{{ scenario.description }}</p>
+            </button>
+        {% endfor %}
+    </div>
+
+    <!-- Scenario form panel -->
+    <div id="scenario-form" class="bg-white rounded-lg shadow p-6">
+        <p class="text-gray-500 italic text-center py-8">
+            Selecteer een levenssituatie hierboven om te beginnen
+        </p>
+    </div>
+</div>
+{% endblock %}

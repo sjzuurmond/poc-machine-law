@@ -1,0 +1,49 @@
+<h2 class="text-xl font-semibold mb-4">Resultaten</h2>
+
+{% if results %}
+    <div class="space-y-4">
+        {% for law_key, result in results.items() %}
+            {% set parts = law_key.split('.') %}
+            {% set law_name = parts[1].split('/')[-1].replace('_', ' ').title() %}
+
+            <div class="border-l-4 border-blue-500 bg-blue-50 p-4 rounded">
+                <h3 class="font-semibold text-gray-900 mb-2">{{ law_name }}</h3>
+
+                {% if result.output %}
+                    <div class="space-y-2">
+                        {% for key, value in result.output.items() %}
+                            {% if value and value != 0 %}
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-700">{{ key.replace('_', ' ').title() }}:</span>
+                                    <span class="font-semibold text-gray-900">
+                                        {% if value is number and value > 1000 %}
+                                            €{{ "%.2f"|format(value / 100) }}
+                                        {% elif value is number %}
+                                            {{ value }}
+                                        {% elif value is sameas true %}
+                                            Ja
+                                        {% elif value is sameas false %}
+                                            Nee
+                                        {% else %}
+                                            {{ value }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-sm text-gray-600 italic">Geen uitvoer beschikbaar</p>
+                {% endif %}
+
+                {% if not result.requirements_met %}
+                    <div class="mt-2 text-xs text-orange-600">
+                        ⚠️ Niet aan alle voorwaarden voldaan
+                    </div>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="text-gray-500 italic">Geen resultaten beschikbaar</p>
+{% endif %}

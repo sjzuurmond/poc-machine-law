@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <a href="/whatif?bsn={{ bsn }}" class="text-blue-600 hover:text-blue-800 mb-2 inline-block">
+            ← Terug naar scenario's
+        </a>
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Directe aanpassing</h1>
+        <p class="text-gray-600">
+            Pas je gegevens aan met de sliders hieronder en zie direct het effect op je toeslagen
+        </p>
+    </div>
+
+    <!-- Main content grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left side: Sliders -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Pas je gegevens aan</h2>
+
+            <form id="slider-form"
+                  hx-post="/whatif/calculate-direct"
+                  hx-target="#results-panel"
+                  hx-trigger="input changed delay:300ms"
+                  hx-indicator="#calculating-indicator">
+
+                <input type="hidden" name="bsn" value="{{ bsn }}">
+
+                {% if slider_fields %}
+                    <div class="space-y-6">
+                        {% for field_key, field_info in slider_fields.items() %}
+                            {% set slider = field_info.slider %}
+                            {% set is_currency = slider.is_currency %}
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ field_info.label }}
+                                </label>
+
+                                <div class="flex items-center space-x-4">
+                                    <input type="range"
+                                           name="{{ field_key }}"
+                                           id="slider-{{ field_key }}"
+                                           min="{{ slider.min }}"
+                                           max="{{ slider.max }}"
+                                           step="{{ slider.step }}"
+                                           value="{{ slider.current }}"
+                                           class="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                                           oninput="document.getElementById('value-{{ field_key }}').textContent = formatValue(this.value, {{ is_currency|lower }})">
+
+                                    <span id="value-{{ field_key }}" class="text-sm font-semibold text-gray-900 w-24 text-right">
+                                        {% if is_currency %}
+                                            €{{ "%.2f"|format(slider.current / 100) }}
+                                        {% else %}
+                                            {{ slider.current }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+
+                                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                    <span>
+                                        {% if is_currency %}
+                                            €{{ "%.0f"|format(slider.min / 100) }}
+                                        {% else %}
+                                            {{ slider.min }}
+                                        {% endif %}
+                                    </span>
+                                    <span>
+                                        {% if is_currency %}
+                                            €{{ "%.0f"|format(slider.max / 100) }}
+                                        {% else %}
+                                            {{ slider.max }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-gray-500 italic">Geen aanpasbare velden beschikbaar</p>
+                {% endif %}
+
+                <!-- Calculating indicator -->
+                <div id="calculating-indicator" class="htmx-indicator mt-4">
+                    <div class="flex items-center text-blue-600">
+                        <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Aan het berekenen...
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Right side: Results -->
+        <div>
+            <div id="results-panel" class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Resultaten</h2>
+                <p class="text-gray-500 italic">Pas de sliders aan om het effect te zien</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function formatValue(value, isCurrency) {
+    if (isCurrency) {
+        return '€' + (parseFloat(value) / 100).toFixed(2);
+    }
+    return value;
+}
+</script>
+{% endblock %}

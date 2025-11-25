@@ -1,0 +1,99 @@
+<div class="mb-6">
+    <div class="flex items-start">
+        <div class="text-4xl mr-4">{{ scenario.icon }}</div>
+        <div>
+            <h2 class="text-2xl font-bold text-gray-900">{{ scenario.title }}</h2>
+            <p class="text-gray-600">{{ scenario.description }}</p>
+        </div>
+    </div>
+</div>
+
+<form hx-post="/whatif/templates/calculate"
+      hx-target="#scenario-results"
+      hx-swap="innerHTML"
+      hx-indicator="#scenario-indicator">
+
+    <input type="hidden" name="bsn" value="{{ bsn }}">
+    <input type="hidden" name="scenario_id" value="{{ scenario_id }}">
+
+    {% if fields %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {% for field_key, field_info in fields.items() %}
+                <div>
+                    <label for="{{ field_key }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        {{ field_info.label }}
+                    </label>
+
+                    {% if field_info.type == 'number' %}
+                        <input type="number"
+                               id="{{ field_key }}"
+                               name="{{ field_key }}"
+                               value="{{ field_info.value }}"
+                               placeholder="{{ field_info.value }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                        {% if field_info.value > 1000 %}
+                            <p class="text-xs text-gray-500 mt-1">
+                                Huidig: €{{ "%.2f"|format(field_info.value / 100) }}
+                            </p>
+                        {% endif %}
+
+                    {% elif field_info.type == 'boolean' %}
+                        <select id="{{ field_key }}"
+                                name="{{ field_key }}"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="true" {% if field_info.value %}selected{% endif %}>Ja</option>
+                            <option value="false" {% if not field_info.value %}selected{% endif %}>Nee</option>
+                        </select>
+
+                    {% elif field_info.type == 'date' %}
+                        <input type="date"
+                               id="{{ field_key }}"
+                               name="{{ field_key }}"
+                               value="{{ field_info.value }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+
+                    {% else %}
+                        <input type="text"
+                               id="{{ field_key }}"
+                               name="{{ field_key }}"
+                               value="{{ field_info.value }}"
+                               placeholder="{{ field_info.value }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Action buttons -->
+        <div class="flex space-x-4">
+            <button type="submit"
+                    class="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+                Bereken effect
+            </button>
+
+            <button type="reset"
+                    class="px-6 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors">
+                Reset naar huidige waarden
+            </button>
+        </div>
+
+    {% else %}
+        <p class="text-gray-500 italic">Geen relevante velden gevonden voor dit scenario</p>
+    {% endif %}
+
+    <!-- Calculating indicator -->
+    <div id="scenario-indicator" class="htmx-indicator mt-4">
+        <div class="flex items-center text-blue-600">
+            <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Aan het berekenen...
+        </div>
+    </div>
+</form>
+
+<!-- Results panel -->
+<div id="scenario-results" class="mt-6">
+    <!-- Results will be loaded here after calculation -->
+</div>

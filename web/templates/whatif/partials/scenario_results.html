@@ -1,0 +1,114 @@
+<div class="bg-gray-50 rounded-lg p-6">
+    <h3 class="text-xl font-semibold text-gray-900 mb-4">
+        Resultaten voor: {{ scenario.title }}
+    </h3>
+
+    {% if comparisons %}
+        <div class="space-y-4">
+            {% for comparison in comparisons %}
+                <div class="bg-white rounded-lg p-4 border-l-4 {% if comparison.delta > 0 %}border-green-500{% elif comparison.delta < 0 %}border-red-500{% else %}border-gray-300{% endif %}">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h4 class="font-semibold text-gray-900">{{ comparison.law_name }}</h4>
+                            <p class="text-sm text-gray-600">{{ comparison.field_label }}</p>
+                        </div>
+
+                        <div class="text-right">
+                            <div class="flex items-center space-x-4">
+                                <!-- Baseline -->
+                                <div>
+                                    <div class="text-xs text-gray-500">Huidig</div>
+                                    <div class="text-lg font-semibold text-gray-700">
+                                        €{{ "%.2f"|format(comparison.baseline_value / 100) }}
+                                    </div>
+                                </div>
+
+                                <!-- Arrow -->
+                                <div>
+                                    {% if comparison.delta > 0 %}
+                                        <svg class="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clip-rule="evenodd" />
+                                        </svg>
+                                    {% elif comparison.delta < 0 %}
+                                        <svg class="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd" />
+                                        </svg>
+                                    {% else %}
+                                        <svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v6a1 1 0 102 0V7z" clip-rule="evenodd" />
+                                        </svg>
+                                    {% endif %}
+                                </div>
+
+                                <!-- New value -->
+                                <div>
+                                    <div class="text-xs text-gray-500">Nieuw</div>
+                                    <div class="text-lg font-semibold {% if comparison.delta > 0 %}text-green-600{% elif comparison.delta < 0 %}text-red-600{% else %}text-gray-700{% endif %}">
+                                        €{{ "%.2f"|format(comparison.modified_value / 100) }}
+                                    </div>
+                                </div>
+
+                                <!-- Delta -->
+                                <div class="min-w-24">
+                                    <div class="text-xs text-gray-500">Verschil</div>
+                                    <div class="text-sm font-semibold {% if comparison.delta > 0 %}text-green-600{% elif comparison.delta < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                                        {% if comparison.delta > 0 %}
+                                            +€{{ "%.2f"|format(comparison.delta / 100) }}
+                                        {% elif comparison.delta < 0 %}
+                                            -€{{ "%.2f"|format(-comparison.delta / 100) }}
+                                        {% else %}
+                                            €0.00
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Summary -->
+        {% set total_baseline = comparisons|sum(attribute='baseline_value') %}
+        {% set total_modified = comparisons|sum(attribute='modified_value') %}
+        {% set total_delta = total_modified - total_baseline %}
+
+        <div class="mt-6 pt-6 border-t-2 border-gray-300">
+            <div class="flex justify-between items-center">
+                <h4 class="text-lg font-semibold text-gray-900">Totaal effect</h4>
+                <div class="flex items-center space-x-4">
+                    <div>
+                        <div class="text-xs text-gray-500">Huidig totaal</div>
+                        <div class="text-xl font-bold text-gray-700">
+                            €{{ "%.2f"|format(total_baseline / 100) }}
+                        </div>
+                    </div>
+                    <div>
+                        →
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500">Nieuw totaal</div>
+                        <div class="text-xl font-bold {% if total_delta > 0 %}text-green-600{% elif total_delta < 0 %}text-red-600{% else %}text-gray-700{% endif %}">
+                            €{{ "%.2f"|format(total_modified / 100) }}
+                        </div>
+                    </div>
+                    <div class="min-w-32">
+                        <div class="text-xs text-gray-500">Totaal verschil</div>
+                        <div class="text-xl font-bold {% if total_delta > 0 %}text-green-600{% elif total_delta < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                            {% if total_delta > 0 %}
+                                +€{{ "%.2f"|format(total_delta / 100) }}
+                            {% elif total_delta < 0 %}
+                                -€{{ "%.2f"|format(-total_delta / 100) }}
+                            {% else %}
+                                €0.00
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <p class="text-gray-500 italic">Geen veranderingen gedetecteerd</p>
+    {% endif %}
+</div>

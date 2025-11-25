@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Wat-als Scenario's</h1>
+        <p class="text-lg text-gray-600">
+            Ontdek hoe veranderingen in je situatie je toeslagen en uitkeringen beïnvloeden
+        </p>
+    </div>
+
+    <!-- Three pattern cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <!-- Pattern 1: Direct Manipulation -->
+        <a href="/whatif/direct-manipulation?bsn={{ bsn }}"
+           class="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-blue-100 hover:border-blue-500">
+            <div class="text-4xl mb-4">🎚️</div>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">Directe aanpassing</h3>
+            <p class="text-gray-600 mb-4">
+                Pas inkomen, huur en vermogen direct aan met sliders en zie meteen het effect
+            </p>
+            <div class="text-blue-600 font-medium">
+                Snel experimenteren →
+            </div>
+        </a>
+
+        <!-- Pattern 2: Template Scenarios -->
+        <a href="/whatif/templates?bsn={{ bsn }}"
+           class="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-green-100 hover:border-green-500">
+            <div class="text-4xl mb-4">📋</div>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">Levenssituaties</h3>
+            <p class="text-gray-600 mb-4">
+                Kies een veelvoorkomende situatie zoals verhuizen of samenwonen
+            </p>
+            <div class="text-green-600 font-medium">
+                Bekijk scenario's →
+            </div>
+        </a>
+
+        <!-- Pattern 3: Comparison Mode -->
+        <a href="/whatif/comparison?bsn={{ bsn }}"
+           class="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-purple-100 hover:border-purple-500">
+            <div class="text-4xl mb-4">📊</div>
+            <h3 class="text-xl font-semibold text-gray-900 mb-2">Vergelijk scenario's</h3>
+            <p class="text-gray-600 mb-4">
+                Vergelijk meerdere scenario's naast elkaar om de beste keuze te maken
+            </p>
+            <div class="text-purple-600 font-medium">
+                Scenario's vergelijken →
+            </div>
+        </a>
+    </div>
+
+    <!-- Info section -->
+    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                </svg>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-sm font-medium text-blue-800">Over wat-als scenario's</h3>
+                <div class="mt-2 text-sm text-blue-700">
+                    <p>
+                        Met wat-als scenario's kun je veilig verkennen hoe veranderingen in je situatie
+                        je toeslagen en uitkeringen beïnvloeden, zonder dat dit gevolgen heeft voor je
+                        daadwerkelijke aanvragen.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

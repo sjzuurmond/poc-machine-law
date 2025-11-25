@@ -1,0 +1,197 @@
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-xl font-semibold mb-4">Vergelijking resultaten</h2>
+
+    {% if baseline_results and scenario_results %}
+        <!-- Results table -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                            Wet / Toeslag
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                            Huidig
+                        </th>
+                        {% for scenario_idx, scenario_data in scenario_results.items()|sort %}
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                {{ scenario_data.name }}
+                            </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for law_info in discoverable_laws %}
+                        {% set service = law_info.service %}
+                        {% set law = law_info.law %}
+                        {% set law_key = service ~ '.' ~ law %}
+                        {% set law_name = law.split('/')[-1].replace('_', ' ').title() %}
+
+                        {% if law_key in baseline_results %}
+                            {% set baseline = baseline_results[law_key] %}
+
+                            <tr>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-900">
+                                    {{ law_name }}
+                                </td>
+
+                                <!-- Baseline value -->
+                                <td class="px-4 py-3 text-sm text-gray-700">
+                                    {% if baseline.output %}
+                                        {% for key, value in baseline.output.items() %}
+                                            {% if value and value != 0 and key not in ['is_gerechtigd', 'voldoet_aan_voorwaarden'] %}
+                                                {% if value is number and value > 1000 %}
+                                                    €{{ "%.2f"|format(value / 100) }}
+                                                {% elif value is number %}
+                                                    {{ value }}
+                                                {% endif %}
+                                                {% break %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+
+                                <!-- Scenario values -->
+                                {% for scenario_idx, scenario_data in scenario_results.items()|sort %}
+                                    <td class="px-4 py-3 text-sm">
+                                        {% if law_key in scenario_data.laws %}
+                                            {% set result = scenario_data.laws[law_key] %}
+                                            {% if result.output %}
+                                                {% for key, value in result.output.items() %}
+                                                    {% if value and value != 0 and key not in ['is_gerechtigd', 'voldoet_aan_voorwaarden'] %}
+                                                        {% if value is number and value > 1000 %}
+                                                            {% set baseline_val = baseline.output.get(key, 0) or 0 %}
+                                                            {% set delta = value - baseline_val %}
+
+                                                            <div class="flex items-center space-x-2">
+                                                                <span class="{% if delta > 0 %}text-green-600{% elif delta < 0 %}text-red-600{% else %}text-gray-700{% endif %} font-semibold">
+                                                                    €{{ "%.2f"|format(value / 100) }}
+                                                                </span>
+
+                                                                {% if delta != 0 %}
+                                                                    <span class="text-xs {% if delta > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                                                        {% if delta > 0 %}
+                                                                            ↑€{{ "%.2f"|format(delta / 100) }}
+                                                                        {% else %}
+                                                                            ↓€{{ "%.2f"|format(-delta / 100) }}
+                                                                        {% endif %}
+                                                                    </span>
+                                                                {% else %}
+                                                                    <span class="text-xs text-gray-400">→</span>
+                                                                {% endif %}
+                                                            </div>
+                                                        {% elif value is number %}
+                                                            {{ value }}
+                                                        {% endif %}
+                                                        {% break %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                {% endfor %}
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+
+                    <!-- Total row -->
+                    <tr class="bg-gray-50 font-semibold">
+                        <td class="px-4 py-3 text-sm text-gray-900">
+                            TOTAAL
+                        </td>
+
+                        <!-- Baseline total -->
+                        <td class="px-4 py-3 text-sm text-gray-900">
+                            {% set baseline_total = namespace(value=0) %}
+                            {% for law_key, result in baseline_results.items() %}
+                                {% if result.output %}
+                                    {% for key, value in result.output.items() %}
+                                        {% if value and value is number and value > 1000 and key not in ['is_gerechtigd', 'voldoet_aan_voorwaarden'] %}
+                                            {% set baseline_total.value = baseline_total.value + value %}
+                                            {% break %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                            €{{ "%.2f"|format(baseline_total.value / 100) }}
+                        </td>
+
+                        <!-- Scenario totals -->
+                        {% for scenario_idx, scenario_data in scenario_results.items()|sort %}
+                            <td class="px-4 py-3 text-sm">
+                                {% set scenario_total = namespace(value=0) %}
+                                {% for law_key, result in scenario_data.laws.items() %}
+                                    {% if result.output %}
+                                        {% for key, value in result.output.items() %}
+                                            {% if value and value is number and value > 1000 and key not in ['is_gerechtigd', 'voldoet_aan_voorwaarden'] %}
+                                                {% set scenario_total.value = scenario_total.value + value %}
+                                                {% break %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endfor %}
+
+                                {% set total_delta = scenario_total.value - baseline_total.value %}
+
+                                <div class="flex items-center space-x-2">
+                                    <span class="{% if total_delta > 0 %}text-green-600{% elif total_delta < 0 %}text-red-600{% else %}text-gray-900{% endif %}">
+                                        €{{ "%.2f"|format(scenario_total.value / 100) }}
+                                    </span>
+
+                                    {% if total_delta != 0 %}
+                                        <span class="text-xs {% if total_delta > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                                            {% if total_delta > 0 %}
+                                                ↑€{{ "%.2f"|format(total_delta / 100) }}
+                                            {% else %}
+                                                ↓€{{ "%.2f"|format(-total_delta / 100) }}
+                                            {% endif %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Best scenario indicator -->
+        {% set best_scenario = namespace(idx=None, value=0) %}
+        {% for scenario_idx, scenario_data in scenario_results.items() %}
+            {% set scenario_total = namespace(value=0) %}
+            {% for law_key, result in scenario_data.laws.items() %}
+                {% if result.output %}
+                    {% for key, value in result.output.items() %}
+                        {% if value and value is number and value > 1000 and key not in ['is_gerechtigd', 'voldoet_aan_voorwaarden'] %}
+                            {% set scenario_total.value = scenario_total.value + value %}
+                            {% break %}
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+
+            {% if best_scenario.idx is none or scenario_total.value > best_scenario.value %}
+                {% set best_scenario.idx = scenario_idx %}
+                {% set best_scenario.value = scenario_total.value %}
+            {% endif %}
+        {% endfor %}
+
+        {% if best_scenario.idx %}
+            <div class="mt-4 p-4 bg-green-50 border-l-4 border-green-500 rounded">
+                <p class="text-sm text-green-800">
+                    <span class="font-semibold">Beste optie:</span>
+                    {{ scenario_results[best_scenario.idx].name }} met totaal €{{ "%.2f"|format(best_scenario.value / 100) }}
+                </p>
+            </div>
+        {% endif %}
+
+    {% else %}
+        <p class="text-gray-500 italic">Vul de velden in en klik op "Bereken en vergelijk"</p>
+    {% endif %}
+</div>
