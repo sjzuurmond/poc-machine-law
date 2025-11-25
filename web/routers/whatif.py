@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.responses import HTMLResponse
 
-from web.dependencies import get_case_manager, get_machine_service, templates
+from web.dependencies import TODAY, get_case_manager, get_machine_service, templates
 from web.engines.case_manager_interface import CaseManagerInterface
 from web.engines.engine_interface import EngineInterface
 
@@ -28,7 +28,7 @@ async def direct_manipulation_panel(
     """
     try:
         # Get current person data
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -106,7 +106,7 @@ async def calculate_direct_manipulation(
         form_data = await request.form()
 
         # Build modified person data
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         modified_person = person.copy()
 
         # Update with form values
@@ -127,7 +127,13 @@ async def calculate_direct_manipulation(
         results = {}
         for law, service in laws_to_check:
             try:
-                result = await machine_service.execute_law(law, modified_person)
+                result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                    overwrite_input=modified_person,
+                )
                 results[law] = {
                     "result": result,
                     "service": service,
@@ -140,7 +146,12 @@ async def calculate_direct_manipulation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await machine_service.execute_law(law, person)
+                result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                )
                 original_results[law] = result
             except Exception as e:
                 logger.warning(f"Failed to calculate original {law}: {e}")
@@ -172,7 +183,7 @@ async def template_scenarios_panel(
     """
     try:
         # Get current person data
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -247,7 +258,7 @@ async def template_scenario_form(
     Render the form for a specific scenario template.
     """
     try:
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -372,7 +383,7 @@ async def calculate_template_scenario(
         form_data = await request.form()
 
         # Build modified person data
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         modified_person = person.copy()
 
         # Update with form values
@@ -395,8 +406,19 @@ async def calculate_template_scenario(
         results = []
         for law, service, display_name in laws_to_check:
             try:
-                original_result = await machine_service.execute_law(law, person)
-                new_result = await machine_service.execute_law(law, modified_person)
+                original_result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                )
+                new_result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                    overwrite_input=modified_person,
+                )
 
                 # Extract main output value
                 original_value = _extract_main_value(original_result)
@@ -442,7 +464,7 @@ async def comparison_panel(
     """
     try:
         # Get current person data
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -456,7 +478,12 @@ async def comparison_panel(
         current_results = []
         for law, service, display_name in laws_to_check:
             try:
-                result = await machine_service.execute_law(law, person)
+                result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                )
                 value = _extract_main_value(result)
                 current_results.append(
                     {
@@ -497,7 +524,7 @@ async def add_comparison_scenario(
         scenario_name = form_data.get("scenario_name", "Nieuw scenario")
 
         # Build modified person data
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         modified_person = person.copy()
 
         # Update with form values
@@ -518,7 +545,13 @@ async def add_comparison_scenario(
         scenario_results = []
         for law, service, display_name in laws_to_check:
             try:
-                result = await machine_service.execute_law(law, modified_person)
+                result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                    overwrite_input=modified_person,
+                )
                 value = _extract_main_value(result)
                 scenario_results.append(
                     {
@@ -566,7 +599,7 @@ async def compact_variation(
     Exact implementation of the ASCII art specification.
     """
     try:
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -595,7 +628,7 @@ async def fullscreen_variation(
     Rich visual experience with gradient cards and detailed feedback.
     """
     try:
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -621,7 +654,7 @@ async def calculate_compact_variation(
     """Calculate results for compact variation."""
     try:
         form_data = await request.form()
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         modified_person = person.copy()
 
         for key, value in form_data.items():
@@ -641,9 +674,20 @@ async def calculate_compact_variation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await machine_service.execute_law(law, modified_person)
+                result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                    overwrite_input=modified_person,
+                )
                 results[law] = {"result": result, "service": service}
-                original_result = await machine_service.execute_law(law, person)
+                original_result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                )
                 original_results[law] = original_result
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
@@ -671,7 +715,7 @@ async def calculate_widget_variation(
     """Calculate results for widget variation."""
     try:
         form_data = await request.form()
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         modified_person = person.copy()
 
         for key, value in form_data.items():
@@ -691,9 +735,20 @@ async def calculate_widget_variation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await machine_service.execute_law(law, modified_person)
+                result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                    overwrite_input=modified_person,
+                )
                 results[law] = {"result": result, "service": service}
-                original_result = await machine_service.execute_law(law, person)
+                original_result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                )
                 original_results[law] = original_result
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
@@ -721,7 +776,7 @@ async def calculate_fullscreen_variation(
     """Calculate results for fullscreen variation."""
     try:
         form_data = await request.form()
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         modified_person = person.copy()
 
         for key, value in form_data.items():
@@ -741,9 +796,20 @@ async def calculate_fullscreen_variation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await machine_service.execute_law(law, modified_person)
+                result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                    overwrite_input=modified_person,
+                )
                 results[law] = {"result": result, "service": service}
-                original_result = await machine_service.execute_law(law, person)
+                original_result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                )
                 original_results[law] = original_result
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
@@ -771,7 +837,7 @@ async def calculate_modal_variation(
     """Calculate results for modal variation."""
     try:
         form_data = await request.form()
-        person = await machine_service.get_person(bsn)
+        person = machine_service.get_profile_data(bsn)
         modified_person = person.copy()
 
         for key, value in form_data.items():
@@ -791,9 +857,20 @@ async def calculate_modal_variation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await machine_service.execute_law(law, modified_person)
+                result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                    overwrite_input=modified_person,
+                )
                 results[law] = {"result": result, "service": service}
-                original_result = await machine_service.execute_law(law, person)
+                original_result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters={"BSN": bsn},
+                    reference_date=TODAY,
+                )
                 original_results[law] = original_result
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
