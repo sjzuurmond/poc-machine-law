@@ -14,196 +14,151 @@ router = APIRouter(prefix="/whatif", tags=["whatif"])
 logger = logging.getLogger(__name__)
 
 
-def extract_whatif_parameters(profile: dict[str, Any]) -> dict[str, Any]:
+def get_fields_from_law_inputs(
+    bsn: str, laws: list[tuple[str, str]], machine_service: EngineInterface, focus_keywords: list[str] | None = None
+) -> dict[str, Any]:
     """
-    Extract commonly adjusted parameters from nested profile structure.
+    Dynamically extract input fields by evaluating laws and inspecting their actual inputs.
 
-    Maps nested profile data to flat dictionary of adjustable parameters.
+    This approach is cleaner than hardcoding field mappings - we let the laws themselves
+    tell us what data they need by looking at result.input from actual evaluations.
 
     Args:
-        profile: Nested profile dictionary from get_profile_data()
+        bsn: The person's BSN for evaluation
+        laws: List of (law, service) tuples to evaluate
+        machine_service: Engine interface for law evaluation
+        focus_keywords: Optional list of keywords to filter fields (e.g., ["inkomen", "vermogen"])
 
     Returns:
-        Flattened dictionary with common adjustable parameters
-    """
-    params = {}
-
-    if not profile or "sources" not in profile:
-        return params
-
-    sources = profile["sources"]
-
-    # Extract income from work (loon_uit_dienstbetrekking)
-    if "BELASTINGDIENST" in sources and "box1" in sources["BELASTINGDIENST"]:
-        box1_data = sources["BELASTINGDIENST"]["box1"]
-        if box1_data:
-            params["inkomen_werk"] = box1_data[0].get("loon_uit_dienstbetrekking", 0)
-            params["inkomen_onderneming"] = box1_data[0].get("winst_uit_onderneming", 0)
-
-    # Extract assets/vermogen
-    if "BELASTINGDIENST" in sources:
-        if "belastingdienst_vermogen" in sources["BELASTINGDIENST"]:
-            vermogen_data = sources["BELASTINGDIENST"]["belastingdienst_vermogen"]
-            if vermogen_data:
-                params["vermogen"] = vermogen_data[0].get("vermogen", 0)
-        elif "box3" in sources["BELASTINGDIENST"]:
-            box3_data = sources["BELASTINGDIENST"]["box3"]
-            if box3_data:
-                params["vermogen"] = box3_data[0].get("spaargeld", 0)
-
-    # Extract rent (huur_per_maand) - check TOESLAGEN or other sources
-    if "TOESLAGEN" in sources:
-        if "huur_en_woongegevens" in sources["TOESLAGEN"]:
-            huur_data = sources["TOESLAGEN"]["huur_en_woongegevens"]
-            if huur_data:
-                # Extract from huurprijs (yearly) and convert to monthly
-                huurprijs = huur_data[0].get("huurprijs", 0)
-                params["huur_per_maand"] = huurprijs / 12 if huurprijs else 0
-        elif "huurtoeslag_woongegevens" in sources["TOESLAGEN"]:
-            woon_data = sources["TOESLAGEN"]["huurtoeslag_woongegevens"]
-            if woon_data:
-                huurprijs = woon_data[0].get("huurprijs", 0)
-                params["huur_per_maand"] = huurprijs / 12 if huurprijs else 0
-
-    # Extract partner income if applicable
-    if "BELASTINGDIENST" in sources and "partner_inkomen" in sources["BELASTINGDIENST"]:
-        partner_data = sources["BELASTINGDIENST"]["partner_inkomen"]
-        if partner_data:
-            params["partner_inkomen"] = partner_data[0].get("inkomen", 0)
-
-    # Extract address information (postcode, woonplaats)
-    if "RvIG" in sources and "verblijfplaats" in sources["RvIG"]:
-        verblijf_data = sources["RvIG"]["verblijfplaats"]
-        if verblijf_data:
-            params["postcode"] = verblijf_data[0].get("postcode", "")
-            params["woonplaats"] = verblijf_data[0].get("woonplaats", "")
-
-    # Extract relationship status (burgerlijke_staat)
-    if "RvIG" in sources and "relaties" in sources["RvIG"]:
-        relatie_data = sources["RvIG"]["relaties"]
-        if relatie_data:
-            partnerschap_type = relatie_data[0].get("partnerschap_type", "GEEN")
-            # Map partnerschap_type to burgerlijke_staat
-            if partnerschap_type == "GEHUWD":
-                params["burgerlijke_staat"] = "gehuwd"
-            elif partnerschap_type == "SAMENWONEND":
-                params["burgerlijke_staat"] = "samenwonend"
-            elif partnerschap_type == "GESCHEIDEN":
-                params["burgerlijke_staat"] = "gescheiden"
-            else:
-                params["burgerlijke_staat"] = "alleenstaand"
-
-    # Extract AOW and pension (if available in profile)
-    # These are typically not in the profile data yet, but we add extraction logic for future use
-    if "BELASTINGDIENST" in sources and "box1" in sources["BELASTINGDIENST"]:
-        box1_data = sources["BELASTINGDIENST"]["box1"]
-        if box1_data:
-            params["aow"] = box1_data[0].get("uitkeringen_en_pensioenen", 0)
-            params["pensioen"] = box1_data[0].get("pensioen", 0)
-
-    return params
-
-
-def get_law_required_fields(laws: list[tuple[str, str]], machine_service: EngineInterface) -> dict[str, dict]:
-    """
-    Get the required input fields for a set of laws.
-
-    This function maps laws to their required input fields. Currently uses a pragmatic
-    mapping based on known law requirements. Can be extended to parse rule specifications
-    dynamically from the machine service.
-
-    Args:
-        laws: List of (law, service) tuples
-        machine_service: Engine interface (for future dynamic field extraction)
-
-    Returns:
-        Dictionary mapping field keys to field configurations:
+        Dictionary mapping field keys to their current values and metadata:
         {
             'field_key': {
+                'value': current_value,
                 'label': 'Human readable label',
                 'type': 'number' | 'text' | 'select',
-                'placeholder': 'Example value',
-                'options': [...] (for select fields)
             }
         }
     """
-    # Mapping of law names to their required input fields
-    # This is a pragmatic approach - can be extended to parse from rule specs
-    LAW_FIELD_REQUIREMENTS = {
-        "zorgtoeslagwet": ["inkomen_werk", "vermogen", "burgerlijke_staat"],
-        "wet_op_de_huurtoeslag": ["huur_per_maand", "inkomen_werk", "postcode", "woonplaats"],
-        "participatiewet": ["inkomen_werk", "vermogen", "burgerlijke_staat"],
-        "wet_inkomstenbelasting_2001": ["inkomen_werk", "inkomen_onderneming", "vermogen"],
-        "algemene_ouderdomswet": ["aow", "pensioen", "inkomen_werk"],
-    }
+    all_inputs = {}
 
-    # Field configuration templates
-    FIELD_CONFIGS = {
-        "inkomen_werk": {
-            "label": "Inkomen uit werk (per jaar)",
-            "type": "number",
-            "placeholder": "Bijv. 35000",
-        },
-        "inkomen_onderneming": {
-            "label": "Inkomen uit onderneming (per jaar)",
-            "type": "number",
-            "placeholder": "Bijv. 40000",
-        },
-        "vermogen": {
-            "label": "Vermogen (spaargeld en bezittingen)",
-            "type": "number",
-            "placeholder": "Bijv. 50000",
-        },
-        "huur_per_maand": {
-            "label": "Huur per maand",
-            "type": "number",
-            "placeholder": "Bijv. 750",
-        },
-        "postcode": {
-            "label": "Postcode",
-            "type": "text",
-            "placeholder": "Bijv. 1012AB",
-        },
-        "woonplaats": {
-            "label": "Woonplaats",
-            "type": "text",
-            "placeholder": "Bijv. Amsterdam",
-        },
-        "burgerlijke_staat": {
-            "label": "Burgerlijke staat",
-            "type": "select",
-            "options": ["alleenstaand", "gehuwd", "samenwonend", "gescheiden"],
-        },
-        "partner_inkomen": {
-            "label": "Inkomen partner (per jaar)",
-            "type": "number",
-            "placeholder": "Bijv. 30000",
-        },
-        "aow": {
-            "label": "AOW (per jaar)",
-            "type": "number",
-            "placeholder": "Bijv. 14000",
-        },
-        "pensioen": {
-            "label": "Pensioen (per jaar)",
-            "type": "number",
-            "placeholder": "Bijv. 20000",
-        },
-    }
-
-    # Collect all required fields from the laws
-    required_fields = set()
     for law, service in laws:
-        if law in LAW_FIELD_REQUIREMENTS:
-            required_fields.update(LAW_FIELD_REQUIREMENTS[law])
+        try:
+            # Evaluate the law to see what inputs it actually uses
+            result = machine_service.evaluate(service=service, law=law, parameters={"BSN": bsn}, reference_date=TODAY)
 
-    # Build field configuration dictionary
-    fields_config = {}
-    for field_key in required_fields:
-        if field_key in FIELD_CONFIGS:
-            fields_config[field_key] = FIELD_CONFIGS[field_key].copy()
+            # result.input contains the actual data the law used
+            if result.input:
+                # Merge inputs (keeping track of which fields are actually used)
+                for field_key, field_value in result.input.items():
+                    # Skip BSN and other meta fields
+                    if field_key.upper() == "BSN":
+                        continue
 
-    return fields_config
+                    # If focus keywords specified, only include matching fields
+                    if focus_keywords and not any(keyword.lower() in field_key.lower() for keyword in focus_keywords):
+                        continue
+
+                    if field_key not in all_inputs:
+                        all_inputs[field_key] = {
+                            "value": field_value,
+                            "label": field_key.replace("_", " ").title(),
+                            "type": _infer_field_type(field_value),
+                        }
+
+        except Exception as e:
+            logger.warning(f"Failed to evaluate {law} for field extraction: {e}")
+
+    return all_inputs
+
+
+def _infer_field_type(value: Any) -> str:
+    """Infer HTML input type from value."""
+    if isinstance(value, bool):
+        return "checkbox"
+    elif isinstance(value, (int, float)):
+        return "number"
+    else:
+        return "text"
+
+
+def create_slider_configs(field_inputs: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Convert dynamic field inputs into slider configurations with intelligent ranges.
+
+    Args:
+        field_inputs: Dictionary of field inputs from get_fields_from_law_inputs
+
+    Returns:
+        List of slider configurations with min/max/step values
+    """
+    sliders = []
+
+    for field_key, field_info in field_inputs.items():
+        if field_info["type"] != "number":
+            continue  # Only create sliders for numeric fields
+
+        current_value = field_info["value"] or 0
+
+        # Determine intelligent ranges based on field name and current value
+        if "inkomen" in field_key.lower():
+            # Income fields: range from 0 to 2x current (or 100k if current is 0)
+            slider_config = {
+                "key": field_key,
+                "label": field_info["label"],
+                "current": current_value,
+                "min": 0,
+                "max": max(100000, current_value * 2),
+                "step": 1000,
+                "format": "currency",
+            }
+        elif "huur" in field_key.lower():
+            # Rent fields: monthly rent from 0 to 2500
+            slider_config = {
+                "key": field_key,
+                "label": field_info["label"],
+                "current": current_value,
+                "min": 0,
+                "max": 2500,
+                "step": 50,
+                "format": "currency_monthly",
+            }
+        elif "vermogen" in field_key.lower():
+            # Vermogen: from 0 to 2x current or 300k
+            slider_config = {
+                "key": field_key,
+                "label": field_info["label"],
+                "current": current_value,
+                "min": 0,
+                "max": max(300000, current_value * 2),
+                "step": 5000,
+                "format": "currency",
+            }
+        elif "aow" in field_key.lower() or "pensioen" in field_key.lower():
+            # AOW/pension: from 0 to 50k
+            slider_config = {
+                "key": field_key,
+                "label": field_info["label"],
+                "current": current_value,
+                "min": 0,
+                "max": 50000,
+                "step": 500,
+                "format": "currency",
+            }
+        else:
+            # Generic numeric field
+            slider_config = {
+                "key": field_key,
+                "label": field_info["label"],
+                "current": current_value,
+                "min": 0,
+                "max": max(100, current_value * 2) if current_value > 0 else 1000,
+                "step": max(1, int((current_value * 2) / 100)) if current_value > 0 else 10,
+                "format": "number",
+            }
+
+        sliders.append(slider_config)
+
+    return sliders
 
 
 def extract_missing_fields(result: RuleResult, machine_service: EngineInterface) -> list[str]:
@@ -311,11 +266,10 @@ def format_output_value(field_info: dict[str, Any]) -> str:
         return "Ja" if value else "Nee"
 
     # Handle amounts (monetary values in cents)
-    if field_type == "amount":
-        if isinstance(value, (int, float)):
-            # Amounts in the system are in cents, convert to euros
-            euro_value = value / 100
-            return f"€ {euro_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    if field_type == "amount" and isinstance(value, (int, float)):
+        # Amounts in the system are in cents, convert to euros
+        euro_value = value / 100
+        return f"€ {euro_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     # Handle regular numbers
     if field_type == "number":
@@ -329,7 +283,6 @@ def format_output_value(field_info: dict[str, Any]) -> str:
 
     # Default: return as string
     return str(value)
-
 
 
 @router.get("/direct-manipulation", response_class=HTMLResponse)
@@ -350,51 +303,18 @@ async def direct_manipulation_panel(
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
-        # Extract flattened parameters for whatif adjustments
-        current_params = extract_whatif_parameters(person)
-
         # Get all cases for this person
         cases = case_manager.get_cases_by_bsn(bsn)
 
-        # Define the main adjustable parameters with their ranges
-        adjustable_params = [
-            {
-                "key": "inkomen_werk",
-                "label": "Inkomen uit werk",
-                "current": current_params.get("inkomen_werk", 0),
-                "min": 0,
-                "max": 80000,
-                "step": 1000,
-                "format": "currency",
-            },
-            {
-                "key": "huur_per_maand",
-                "label": "Huur per maand",
-                "current": current_params.get("huur_per_maand", 0),
-                "min": 0,
-                "max": 2000,
-                "step": 50,
-                "format": "currency_monthly",
-            },
-            {
-                "key": "inkomen_onderneming",
-                "label": "Inkomen uit onderneming",
-                "current": current_params.get("inkomen_onderneming", 0),
-                "min": 0,
-                "max": 100000,
-                "step": 1000,
-                "format": "currency",
-            },
-            {
-                "key": "vermogen",
-                "label": "Vermogen",
-                "current": current_params.get("vermogen", 0),
-                "min": 0,
-                "max": 200000,
-                "step": 5000,
-                "format": "currency",
-            },
-        ]
+        # Get all discoverable laws for this person
+        discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
+        laws_to_check = [(law_info["law"], law_info["service"]) for law_info in discoverable_laws]
+
+        # Dynamically extract fields by evaluating laws - much cleaner than hardcoding!
+        field_inputs = get_fields_from_law_inputs(bsn, laws_to_check, machine_service, focus_keywords=None)
+
+        # Convert to slider configurations with intelligent ranges
+        adjustable_params = create_slider_configs(field_inputs)
 
         template = templates.get_template("partials/whatif/direct_manipulation.html")
         return HTMLResponse(
@@ -597,93 +517,41 @@ async def template_scenario_form(
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
-        # Extract current values from nested profile structure
-        current_values = extract_whatif_parameters(person)
-
-        # Define scenario configurations with focus fields
+        # Define scenario focus keywords - scenarios filter fields by relevance, not hardcode them
         scenario_configs = {
-            "income_increase": {
-                "focus_fields": ["inkomen_werk", "inkomen_onderneming"],
-            },
-            "moving": {
-                "focus_fields": ["huur_per_maand", "postcode", "woonplaats"],
-            },
-            "relationship_change": {
-                "focus_fields": ["burgerlijke_staat", "partner_inkomen"],
-            },
-            "self_employed": {
-                "focus_fields": ["inkomen_onderneming", "inkomen_werk"],
-            },
-            "retirement": {
-                "focus_fields": ["inkomen_werk", "aow", "pensioen"],
-            },
-            "custom": {
-                "focus_fields": [],  # Empty means show all relevant fields
-            },
+            "income_increase": {"keywords": ["inkomen", "vermogen"]},
+            "moving": {"keywords": ["huur", "postcode", "woonplaats", "adres"]},
+            "relationship_change": {"keywords": ["burgerlijk", "partner", "gehuwd", "samenwon"]},
+            "self_employed": {"keywords": ["inkomen", "onderneming", "zzp"]},
+            "retirement": {"keywords": ["aow", "pensioen", "inkomen"]},
+            "custom": {"keywords": None},  # None means show all fields
         }
 
         # Get scenario configuration
-        scenario_config = scenario_configs.get(scenario_id, {"focus_fields": []})
-        focus_fields = scenario_config["focus_fields"]
+        scenario_config = scenario_configs.get(scenario_id, {"keywords": None})
+        focus_keywords = scenario_config["keywords"]
 
         # Get all discoverable laws for this person
         discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
         laws_to_check = [(law_info["law"], law_info["service"]) for law_info in discoverable_laws]
 
-        # Get all required fields based on relevant laws
-        all_fields_config = get_law_required_fields(laws_to_check, machine_service)
+        # Dynamically extract fields by evaluating laws and inspecting their inputs
+        # This is much cleaner than hardcoding - we let the laws tell us what they need
+        field_inputs = get_fields_from_law_inputs(bsn, laws_to_check, machine_service, focus_keywords)
 
-        # Determine which fields to show:
-        # - If focus_fields is empty (custom scenario), show all fields
-        # - Otherwise, show focus_fields + any additional fields required by laws
-        if focus_fields:
-            # Start with focus fields
-            fields_to_show = set(focus_fields)
+        # Build field list for template
+        fields = [
+            {
+                "key": field_key,
+                "label": field_info["label"],
+                "type": field_info["type"],
+                "current": field_info["value"],
+            }
+            for field_key, field_info in field_inputs.items()
+        ]
 
-            # Add any law-required fields that overlap with focus areas
-            # This ensures we don't miss critical fields for laws affected by the scenario
-            for field_key in all_fields_config.keys():
-                # If this field is needed by any relevant law AND is in our focus area, include it
-                if field_key in focus_fields or any(keyword in field_key for keyword in
-                    ['inkomen', 'vermogen', 'huur', 'postcode', 'woonplaats', 'burgerlijk', 'partner', 'aow', 'pensioen']):
-                    # Only add if it's contextually relevant to the scenario
-                    if scenario_id == "moving" and field_key in ["huur_per_maand", "postcode", "woonplaats"]:
-                        fields_to_show.add(field_key)
-                    elif scenario_id == "income_increase" and "inkomen" in field_key:
-                        fields_to_show.add(field_key)
-                    elif scenario_id == "relationship_change" and ("burgerlijk" in field_key or "partner" in field_key):
-                        fields_to_show.add(field_key)
-                    elif scenario_id == "self_employed" and "inkomen" in field_key:
-                        fields_to_show.add(field_key)
-                    elif scenario_id == "retirement" and (field_key in ["inkomen_werk", "aow", "pensioen"]):
-                        fields_to_show.add(field_key)
-                    elif field_key in focus_fields:
-                        fields_to_show.add(field_key)
-        else:
-            # Custom scenario: show all relevant fields
-            fields_to_show = set(all_fields_config.keys())
-
-        # Build field list with current values
-        fields = []
-        for field_key in fields_to_show:
-            if field_key in all_fields_config:
-                field_config = all_fields_config[field_key]
-                field = {
-                    "key": field_key,
-                    "label": field_config["label"],
-                    "type": field_config["type"],
-                    "current": current_values.get(field_key, 0 if field_config["type"] == "number" else ""),
-                    "placeholder": field_config.get("placeholder", ""),
-                }
-                if "options" in field_config:
-                    field["options"] = field_config["options"]
-
-                fields.append(field)
-
-        # Sort fields for consistent display (income first, then other fields)
-        field_order = ["inkomen_werk", "inkomen_onderneming", "vermogen", "huur_per_maand",
-                      "postcode", "woonplaats", "burgerlijke_staat", "partner_inkomen", "aow", "pensioen"]
-        fields.sort(key=lambda f: field_order.index(f["key"]) if f["key"] in field_order else 999)
+        # Sort fields alphabetically for consistent display
+        fields.sort(key=lambda f: f["label"])
 
         template = templates.get_template("partials/whatif/template_scenario_form.html")
         return HTMLResponse(
