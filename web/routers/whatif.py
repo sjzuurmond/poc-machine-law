@@ -55,6 +55,77 @@ SCENARIO_TEMPLATES = {
 }
 
 
+def rank_field_impact(field_key: str, field_info: dict[str, Any]) -> int:
+    """
+    Rank fields by their expected impact on benefits (higher = more important).
+
+    Args:
+        field_key: Full field key (service.law.field)
+        field_info: Field metadata
+
+    Returns:
+        Impact score (0-100)
+    """
+    field_key_lower = field_key.lower()
+
+    # High impact fields (70-100)
+    if "inkomen" in field_key_lower or "loon" in field_key_lower or "salaris" in field_key_lower:
+        return 100
+    if "vermogen" in field_key_lower or "spaargeld" in field_key_lower:
+        return 95
+    if "huur" in field_key_lower or "woonlasten" in field_key_lower:
+        return 90
+    if "partner" in field_key_lower or "toeslagpartner" in field_key_lower:
+        return 85
+
+    # Medium impact fields (40-69)
+    if "postcode" in field_key_lower or "woonplaats" in field_key_lower:
+        return 60
+    if "burgerlijk" in field_key_lower or "gehuwd" in field_key_lower:
+        return 55
+    if "kinderen" in field_key_lower or "kind" in field_key_lower:
+        return 50
+
+    # Low impact fields (0-39)
+    if field_info["type"] == "boolean":
+        return 30
+    if field_info["type"] == "date":
+        return 20
+
+    return 10  # Default for other fields
+
+
+def get_field_help_text(field_key: str) -> str:
+    """
+    Get help text explaining what a field means.
+
+    Args:
+        field_key: Field name (lowercase)
+
+    Returns:
+        Dutch help text
+    """
+    field_key_lower = field_key.lower()
+
+    help_texts = {
+        "inkomen": "Uw totale jaarinkomen uit werk, uitkering of pensioen",
+        "vermogen": "Totaal spaargeld en bezittingen (exclusief eigen woning)",
+        "huur": "Maandelijkse huurprijs van uw woning",
+        "toeslagpartner": "Of u een fiscale partner heeft",
+        "woonplaats": "De gemeente waar u woont",
+        "postcode": "Uw postcode (beïnvloedt zorgtoeslag)",
+        "burgerlijkestaat": "Uw relatiestatus (gehuwd, samenwonend, alleenstaand)",
+        "aantal_kinderen": "Aantal kinderen dat bij u woont",
+        "leeftijd": "Uw leeftijd in jaren",
+    }
+
+    for key, text in help_texts.items():
+        if key in field_key_lower:
+            return text
+
+    return "Vul de waarde in voor dit veld"
+
+
 def get_fields_from_law_inputs(
     bsn: str,
     laws: list[dict[str, str]],
@@ -71,7 +142,7 @@ def get_fields_from_law_inputs(
         focus_keywords: Keywords to filter fields (e.g., ["inkomen", "huur"])
 
     Returns:
-        Dictionary of {field_key: {"value": ..., "label": ..., "type": ...}}
+        Dictionary of {field_key: {"value": ..., "label": ..., "type": ..., "impact_rank": ..., "help_text": ...}}
     """
     fields = {}
 
@@ -129,7 +200,7 @@ def get_fields_from_law_inputs(
                 # Store field info
                 field_full_key = f"{service}.{law}.{field_key}"
                 if field_full_key not in fields:  # Avoid duplicates
-                    fields[field_full_key] = {
+                    field_info = {
                         "key": field_key,
                         "service": service,
                         "law": law,
@@ -137,13 +208,136 @@ def get_fields_from_law_inputs(
                         "label": label,
                         "type": field_type,
                         "spec": prop_spec,
+                        "help_text": get_field_help_text(field_key),
                     }
+                    # Add impact ranking
+                    field_info["impact_rank"] = rank_field_impact(field_full_key, field_info)
+                    fields[field_full_key] = field_info
 
         except Exception as e:
             logger.warning(f"Could not extract fields from {service}/{law}: {e}")
             continue
 
     return fields
+
+
+def validate_field_value(field_key: str, value: Any, field_info: dict[str, Any]) -> tuple[bool, str | None]:
+    """
+    Validate a field value.
+
+    Args:
+        field_key: Field key
+        value: Value to validate
+        field_info: Field metadata
+
+    Returns:
+        (is_valid, error_message)
+    """
+    if field_info["type"] == "number":
+        try:
+            num_value = int(value) if value else 0
+
+            # Check for negative values where inappropriate
+            if num_value < 0 and any(
+                keyword in field_key.lower() for keyword in ["inkomen", "vermogen", "huur", "bedrag", "loon", "salaris"]
+            ):
+                return False, "Waarde kan niet negatief zijn"
+
+            # Check reasonable maximums
+            if "inkomen" in field_key.lower() and num_value > 100000000:  # €1M in cents
+                return False, "Inkomen lijkt onrealistisch hoog (max €1.000.000)"
+            if "huur" in field_key.lower() and num_value > 500000:  # €5000/month in cents
+                return False, "Huurprijs lijkt onrealistisch hoog (max €5.000/maand)"
+            if "vermogen" in field_key.lower() and num_value > 1000000000:  # €10M in cents
+                return False, "Vermogen lijkt onrealistisch hoog (max €10.000.000)"
+
+        except (ValueError, TypeError):
+            return False, "Ongeldige numerieke waarde"
+
+    return True, None
+
+
+def detect_threshold_warnings(baseline_value: int, new_value: int, field_key: str) -> list[dict[str, str]]:
+    """
+    Detect if user is approaching benefit thresholds.
+
+    Args:
+        baseline_value: Current value (in cents for currency)
+        new_value: New value
+        field_key: Field identifier
+
+    Returns:
+        List of warning dicts with {"type": ..., "message": ...}
+    """
+    warnings = []
+
+    # Known thresholds (in cents for currency fields)
+    thresholds = {
+        "inkomen": {
+            "zorgtoeslag_max": 4500000,  # €45,000 (approximate)
+            "huurtoeslag_max": 3200000,  # €32,000 (approximate)
+        },
+        "huur": {
+            "huurtoeslag_liberalisatiegrens": 88000,  # €880/month
+        },
+        "vermogen": {
+            "toeslagen_vermogensgrens": 3500000,  # €35,000 for partner
+        },
+    }
+
+    field_key_lower = field_key.lower()
+
+    # Check income thresholds
+    if "inkomen" in field_key_lower:
+        for threshold_name, threshold_value in thresholds.get("inkomen", {}).items():
+            # Warn if approaching threshold (within 10%)
+            if baseline_value < threshold_value <= new_value:
+                warnings.append(
+                    {
+                        "type": "danger",
+                        "message": f"Let op: U gaat over de inkomensgrens van €{threshold_value / 100:.0f}. Dit kan uw {threshold_name.split('_')[0]} beïnvloeden.",
+                    }
+                )
+            elif 0.9 * threshold_value <= new_value < threshold_value:
+                remaining = threshold_value - new_value
+                warnings.append(
+                    {
+                        "type": "warning",
+                        "message": f"Let op: Nog €{remaining / 100:.0f} voordat u de grens bereikt voor {threshold_name.split('_')[0]}.",
+                    }
+                )
+
+    # Check rent thresholds
+    if "huur" in field_key_lower:
+        liberalisatiegrens = thresholds["huur"]["huurtoeslag_liberalisatiegrens"]
+        if baseline_value < liberalisatiegrens <= new_value:
+            warnings.append(
+                {
+                    "type": "danger",
+                    "message": f"Let op: Huur boven €{liberalisatiegrens / 100:.0f}/maand = geen huurtoeslag meer!",
+                }
+            )
+        elif 0.9 * liberalisatiegrens <= new_value < liberalisatiegrens:
+            remaining = liberalisatiegrens - new_value
+            warnings.append(
+                {
+                    "type": "warning",
+                    "message": f"Let op: Nog €{remaining / 100:.0f}/maand voordat u geen huurtoeslag meer krijgt.",
+                }
+            )
+
+    # Check wealth thresholds
+    if "vermogen" in field_key_lower:
+        vermogensgrens = thresholds["vermogen"]["toeslagen_vermogensgrens"]
+        if baseline_value < vermogensgrens <= new_value:
+            warnings.append(
+                {
+                    "type": "danger",
+                    "message": f"Let op: Vermogen boven €{vermogensgrens / 100:.0f} kan uw toeslagen verminderen.",
+                }
+            )
+
+    return warnings
 
 
 def create_slider_configs(fields: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:

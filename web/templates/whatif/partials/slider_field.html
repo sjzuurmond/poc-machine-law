@@ -1,0 +1,108 @@
+{% set slider = field_info.slider %}
+{% set is_currency = slider.is_currency %}
+{% set field_id = field_key.replace('.', '-') %}
+
+<div>
+    <div class="flex items-center justify-between mb-2">
+        <label for="slider-{{ field_id }}"
+               class="block text-sm font-medium text-gray-700">
+            {{ field_info.label }}
+        </label>
+
+        <!-- Help tooltip -->
+        <div class="relative group">
+            <button type="button"
+                    class="text-gray-400 hover:text-gray-600"
+                    aria-label="Help voor {{ field_info.label }}">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                </svg>
+            </button>
+            <div class="invisible group-hover:visible absolute right-0 z-10 w-64 p-2 mt-1 text-xs text-white bg-gray-900 rounded-lg shadow-lg">
+                {{ field_info.help_text }}
+            </div>
+        </div>
+    </div>
+
+    <div class="flex items-center space-x-4">
+        <input type="range"
+               name="{{ field_key }}"
+               id="slider-{{ field_id }}"
+               class="slider-input flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+               min="{{ slider.min }}"
+               max="{{ slider.max }}"
+               step="{{ slider.step }}"
+               value="{{ slider.current }}"
+               data-currency="{{ is_currency|lower }}"
+               data-baseline="{{ slider.current }}"
+               aria-label="{{ field_info.label }}"
+               aria-valuemin="{{ slider.min }}"
+               aria-valuemax="{{ slider.max }}"
+               aria-valuenow="{{ slider.current }}"
+               aria-valuetext="{% if is_currency %}€{{ '%.2f'|format(slider.current / 100) }}{% else %}{{ slider.current }}{% endif %}"
+               x-bind:disabled="isCalculating"
+               oninput="updateSliderValue('{{ field_id }}', this.value, {{ is_currency|lower }})">
+
+        <span id="value-{{ field_id }}"
+              class="text-sm font-semibold text-gray-900 w-32 text-right"
+              aria-live="polite">
+            {% if is_currency %}
+                €{{ "%.2f"|format(slider.current / 100)|replace('.', ',') }}
+            {% else %}
+                {{ slider.current }}
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="flex justify-between text-xs text-gray-500 mt-1">
+        <span>
+            {% if is_currency %}
+                €{{ "%.0f"|format(slider.min / 100) }}
+            {% else %}
+                {{ slider.min }}
+            {% endif %}
+        </span>
+        <span>
+            {% if is_currency %}
+                €{{ "%.0f"|format(slider.max / 100) }}
+            {% else %}
+                {{ slider.max }}
+            {% endif %}
+        </span>
+    </div>
+
+    <!-- Impact indicator -->
+    {% if field_info.impact_rank >= 85 %}
+        <div class="flex items-center mt-1 text-xs text-orange-600">
+            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>
+            Hoge impact op uitkomst
+        </div>
+    {% endif %}
+</div>
+
+<script>
+function updateSliderValue(fieldId, value, isCurrency) {
+    const valueDisplay = document.getElementById('value-' + fieldId);
+    const slider = document.getElementById('slider-' + fieldId);
+
+    if (valueDisplay) {
+        if (isCurrency) {
+            const formatted = (parseFloat(value) / 100).toFixed(2).replace('.', ',');
+            valueDisplay.textContent = '€' + formatted;
+        } else {
+            valueDisplay.textContent = value;
+        }
+    }
+
+    // Update ARIA valuetext for screen readers
+    if (slider) {
+        const ariaText = isCurrency ?
+            `€${(parseFloat(value) / 100).toFixed(2)}` :
+            value;
+        slider.setAttribute('aria-valuenow', value);
+        slider.setAttribute('aria-valuetext', ariaText);
+    }
+}
+</script>

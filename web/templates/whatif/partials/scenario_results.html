@@ -1,3 +1,5 @@
+{% import 'whatif/macros.html' as macros %}
+
 <div class="bg-gray-50 rounded-lg p-6">
     <h3 class="text-xl font-semibold text-gray-900 mb-4">
         Resultaten voor: {{ scenario.title }}
@@ -19,46 +21,23 @@
                                 <div>
                                     <div class="text-xs text-gray-500">Huidig</div>
                                     <div class="text-lg font-semibold text-gray-700">
-                                        €{{ "%.2f"|format(comparison.baseline_value / 100) }}
+                                        {{ macros.format_currency(comparison.baseline_value) }}
                                     </div>
                                 </div>
 
-                                <!-- Arrow -->
-                                <div>
-                                    {% if comparison.delta > 0 %}
-                                        <svg class="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clip-rule="evenodd" />
-                                        </svg>
-                                    {% elif comparison.delta < 0 %}
-                                        <svg class="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd" />
-                                        </svg>
-                                    {% else %}
-                                        <svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v6a1 1 0 102 0V7z" clip-rule="evenodd" />
-                                        </svg>
-                                    {% endif %}
-                                </div>
-
-                                <!-- New value -->
+                                <!-- Arrow and new value -->
                                 <div>
                                     <div class="text-xs text-gray-500">Nieuw</div>
                                     <div class="text-lg font-semibold {% if comparison.delta > 0 %}text-green-600{% elif comparison.delta < 0 %}text-red-600{% else %}text-gray-700{% endif %}">
-                                        €{{ "%.2f"|format(comparison.modified_value / 100) }}
+                                        {{ macros.format_currency(comparison.modified_value) }}
                                     </div>
                                 </div>
 
                                 <!-- Delta -->
                                 <div class="min-w-24">
                                     <div class="text-xs text-gray-500">Verschil</div>
-                                    <div class="text-sm font-semibold {% if comparison.delta > 0 %}text-green-600{% elif comparison.delta < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
-                                        {% if comparison.delta > 0 %}
-                                            +€{{ "%.2f"|format(comparison.delta / 100) }}
-                                        {% elif comparison.delta < 0 %}
-                                            -€{{ "%.2f"|format(-comparison.delta / 100) }}
-                                        {% else %}
-                                            €0.00
-                                        {% endif %}
+                                    <div class="text-sm">
+                                        {{ macros.delta_indicator(comparison.delta, true) }}
                                     </div>
                                 </div>
                             </div>
@@ -80,7 +59,7 @@
                     <div>
                         <div class="text-xs text-gray-500">Huidig totaal</div>
                         <div class="text-xl font-bold text-gray-700">
-                            €{{ "%.2f"|format(total_baseline / 100) }}
+                            {{ macros.format_currency_long(total_baseline) }}
                         </div>
                     </div>
                     <div>
@@ -89,19 +68,13 @@
                     <div>
                         <div class="text-xs text-gray-500">Nieuw totaal</div>
                         <div class="text-xl font-bold {% if total_delta > 0 %}text-green-600{% elif total_delta < 0 %}text-red-600{% else %}text-gray-700{% endif %}">
-                            €{{ "%.2f"|format(total_modified / 100) }}
+                            {{ macros.format_currency_long(total_modified) }}
                         </div>
                     </div>
                     <div class="min-w-32">
                         <div class="text-xs text-gray-500">Totaal verschil</div>
-                        <div class="text-xl font-bold {% if total_delta > 0 %}text-green-600{% elif total_delta < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
-                            {% if total_delta > 0 %}
-                                +€{{ "%.2f"|format(total_delta / 100) }}
-                            {% elif total_delta < 0 %}
-                                -€{{ "%.2f"|format(-total_delta / 100) }}
-                            {% else %}
-                                €0.00
-                            {% endif %}
+                        <div class="text-xl">
+                            {{ macros.delta_indicator(total_delta, true) }}
                         </div>
                     </div>
                 </div>
@@ -109,6 +82,6 @@
         </div>
 
     {% else %}
-        <p class="text-gray-500 italic">Geen veranderingen gedetecteerd</p>
+        {{ macros.empty_state('Geen veranderingen', 'Pas velden aan om het effect te zien', 'chart') }}
     {% endif %}
 </div>
