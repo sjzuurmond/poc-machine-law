@@ -561,6 +561,270 @@ async def add_comparison_scenario(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/variations/compact", response_class=HTMLResponse)
+async def compact_variation(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """
+    Render the compact side-by-side variation.
+
+    Exact implementation of the ASCII art specification.
+    """
+    try:
+        person = await engine.get_person(bsn)
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+        template = templates.get_template("partials/whatif/variations/compact_sidebyside.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                person=person,
+                bsn=bsn,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error loading compact variation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/variations/fullscreen", response_class=HTMLResponse)
+async def fullscreen_variation(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """
+    Render the full-screen interactive variation.
+
+    Rich visual experience with gradient cards and detailed feedback.
+    """
+    try:
+        person = await engine.get_person(bsn)
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+        template = templates.get_template("partials/whatif/variations/fullscreen_interactive.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                person=person,
+                bsn=bsn,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error loading fullscreen variation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/variations/compact/calculate", response_class=HTMLResponse)
+async def calculate_compact_variation(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """Calculate results for compact variation."""
+    try:
+        form_data = await request.form()
+        person = await engine.get_person(bsn)
+        modified_person = person.copy()
+
+        for key, value in form_data.items():
+            if key != "bsn":
+                try:
+                    modified_person[key] = int(value) if value else 0
+                except (ValueError, TypeError):
+                    modified_person[key] = value
+
+        laws_to_check = [
+            ("zorgtoeslagwet", "TOESLAGEN"),
+            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
+            ("participatiewet", "GEMEENTE"),
+        ]
+
+        results = {}
+        original_results = {}
+        for law, service in laws_to_check:
+            try:
+                result = await engine.execute_law(law, modified_person)
+                results[law] = {"result": result, "service": service}
+                original_result = await engine.execute_law(law, person)
+                original_results[law] = original_result
+            except Exception as e:
+                logger.warning(f"Failed to calculate {law}: {e}")
+
+        template = templates.get_template("partials/whatif/variations/compact_results.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                results=results,
+                original_results=original_results,
+                modified_person=modified_person,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error calculating compact variation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/variations/widget/calculate", response_class=HTMLResponse)
+async def calculate_widget_variation(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """Calculate results for widget variation."""
+    try:
+        form_data = await request.form()
+        person = await engine.get_person(bsn)
+        modified_person = person.copy()
+
+        for key, value in form_data.items():
+            if key != "bsn":
+                try:
+                    modified_person[key] = int(value) if value else 0
+                except (ValueError, TypeError):
+                    modified_person[key] = value
+
+        laws_to_check = [
+            ("zorgtoeslagwet", "TOESLAGEN"),
+            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
+            ("participatiewet", "GEMEENTE"),
+        ]
+
+        results = {}
+        original_results = {}
+        for law, service in laws_to_check:
+            try:
+                result = await engine.execute_law(law, modified_person)
+                results[law] = {"result": result, "service": service}
+                original_result = await engine.execute_law(law, person)
+                original_results[law] = original_result
+            except Exception as e:
+                logger.warning(f"Failed to calculate {law}: {e}")
+
+        template = templates.get_template("partials/whatif/variations/widget_results.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                results=results,
+                original_results=original_results,
+                modified_person=modified_person,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error calculating widget variation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/variations/fullscreen/calculate", response_class=HTMLResponse)
+async def calculate_fullscreen_variation(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """Calculate results for fullscreen variation."""
+    try:
+        form_data = await request.form()
+        person = await engine.get_person(bsn)
+        modified_person = person.copy()
+
+        for key, value in form_data.items():
+            if key != "bsn":
+                try:
+                    modified_person[key] = int(value) if value else 0
+                except (ValueError, TypeError):
+                    modified_person[key] = value
+
+        laws_to_check = [
+            ("zorgtoeslagwet", "TOESLAGEN"),
+            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
+            ("participatiewet", "GEMEENTE"),
+        ]
+
+        results = {}
+        original_results = {}
+        for law, service in laws_to_check:
+            try:
+                result = await engine.execute_law(law, modified_person)
+                results[law] = {"result": result, "service": service}
+                original_result = await engine.execute_law(law, person)
+                original_results[law] = original_result
+            except Exception as e:
+                logger.warning(f"Failed to calculate {law}: {e}")
+
+        template = templates.get_template("partials/whatif/variations/fullscreen_results.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                results=results,
+                original_results=original_results,
+                modified_person=modified_person,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error calculating fullscreen variation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/variations/modal/calculate", response_class=HTMLResponse)
+async def calculate_modal_variation(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """Calculate results for modal variation."""
+    try:
+        form_data = await request.form()
+        person = await engine.get_person(bsn)
+        modified_person = person.copy()
+
+        for key, value in form_data.items():
+            if key != "bsn":
+                try:
+                    modified_person[key] = int(value) if value else 0
+                except (ValueError, TypeError):
+                    modified_person[key] = value
+
+        laws_to_check = [
+            ("zorgtoeslagwet", "TOESLAGEN"),
+            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
+            ("participatiewet", "GEMEENTE"),
+        ]
+
+        results = {}
+        original_results = {}
+        for law, service in laws_to_check:
+            try:
+                result = await engine.execute_law(law, modified_person)
+                results[law] = {"result": result, "service": service}
+                original_result = await engine.execute_law(law, person)
+                original_results[law] = original_result
+            except Exception as e:
+                logger.warning(f"Failed to calculate {law}: {e}")
+
+        template = templates.get_template("partials/whatif/variations/modal_results.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                results=results,
+                original_results=original_results,
+                modified_person=modified_person,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error calculating modal variation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 def _extract_main_value(result: Any) -> float | None:
     """Extract the main monetary value from a law result."""
     if not result or not hasattr(result, "output"):

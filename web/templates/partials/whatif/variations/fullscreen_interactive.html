@@ -1,0 +1,300 @@
+<!-- Variation 3: Full-Screen Interactive with Visual Feedback -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+  <div class="container mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="mb-8 text-center">
+      <h1 class="text-4xl font-bold text-gray-900 mb-2">
+        ⚡ Wat-als Scenario Explorer
+      </h1>
+      <p class="text-gray-600">Experimenteer met verschillende situaties en zie direct de impact</p>
+    </div>
+
+    <!-- Main Interactive Panel -->
+    <div
+      class="max-w-7xl mx-auto"
+      x-data="interactiveWhatIf()"
+    >
+      <form
+        id="fullscreen-whatif-form"
+        hx-post="/whatif/direct-manipulation/calculate?bsn={{ bsn }}"
+        hx-target="#fullscreen-results"
+        hx-trigger="input changed delay:350ms from:input"
+        hx-indicator="#fullscreen-loading"
+      >
+        <input type="hidden" name="bsn" value="{{ bsn }}">
+
+        <!-- Control Panel -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <!-- Inkomen Card -->
+          <div class="bg-white rounded-2xl shadow-xl p-6 border-2 border-transparent hover:border-blue-400 transition-all">
+            <div class="flex items-center mb-4">
+              <div class="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center mr-3">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Inkomen</h3>
+                <p class="text-2xl font-bold text-blue-600 tabular-nums" x-text="formatMoney(inkomen_werk)">€35.000</p>
+              </div>
+            </div>
+
+            <input
+              type="range"
+              name="inkomen_werk"
+              min="0"
+              max="80000"
+              step="1000"
+              value="35000"
+              x-model="inkomen_werk"
+              class="interactive-slider blue-slider"
+            >
+
+            <div class="flex justify-between text-xs text-gray-500 mt-2">
+              <span>€0</span>
+              <span class="font-medium text-blue-600" x-text="getPercentage(inkomen_werk, 80000) + '%'">44%</span>
+              <span>€80k</span>
+            </div>
+
+            <!-- Visual Bar -->
+            <div class="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-300"
+                :style="'width: ' + getPercentage(inkomen_werk, 80000) + '%'"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Huur Card -->
+          <div class="bg-white rounded-2xl shadow-xl p-6 border-2 border-transparent hover:border-green-400 transition-all">
+            <div class="flex items-center mb-4">
+              <div class="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center mr-3">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Huur</h3>
+                <p class="text-2xl font-bold text-green-600 tabular-nums" x-text="formatMoney(huur_per_maand) + '/mnd'">€800/mnd</p>
+              </div>
+            </div>
+
+            <input
+              type="range"
+              name="huur_per_maand"
+              min="0"
+              max="2000"
+              step="25"
+              value="800"
+              x-model="huur_per_maand"
+              class="interactive-slider green-slider"
+            >
+
+            <div class="flex justify-between text-xs text-gray-500 mt-2">
+              <span>€0</span>
+              <span class="font-medium text-green-600" x-text="getPercentage(huur_per_maand, 2000) + '%'">40%</span>
+              <span>€2k</span>
+            </div>
+
+            <!-- Visual Bar -->
+            <div class="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-300"
+                :style="'width: ' + getPercentage(huur_per_maand, 2000) + '%'"
+              ></div>
+            </div>
+          </div>
+
+          <!-- Vermogen Card -->
+          <div class="bg-white rounded-2xl shadow-xl p-6 border-2 border-transparent hover:border-purple-400 transition-all">
+            <div class="flex items-center mb-4">
+              <div class="w-12 h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center mr-3">
+                <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Vermogen</h3>
+                <p class="text-2xl font-bold text-purple-600 tabular-nums" x-text="formatMoney(vermogen)">€10.000</p>
+              </div>
+            </div>
+
+            <input
+              type="range"
+              name="vermogen"
+              min="0"
+              max="100000"
+              step="1000"
+              value="10000"
+              x-model="vermogen"
+              class="interactive-slider purple-slider"
+            >
+
+            <div class="flex justify-between text-xs text-gray-500 mt-2">
+              <span>€0</span>
+              <span class="font-medium text-purple-600" x-text="getPercentage(vermogen, 100000) + '%'">10%</span>
+              <span>€100k</span>
+            </div>
+
+            <!-- Visual Bar -->
+            <div class="mt-3 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                class="h-full bg-gradient-to-r from-purple-400 to-purple-600 transition-all duration-300"
+                :style="'width: ' + getPercentage(vermogen, 100000) + '%'"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
+          <div class="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-bold text-white flex items-center">
+                <svg class="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                </svg>
+                Impact op je regelingen
+              </h2>
+              <div id="fullscreen-loading" class="htmx-indicator">
+                <div class="flex items-center text-white text-sm">
+                  <svg class="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Berekenen...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="fullscreen-results" class="p-6">
+            <!-- Initial state -->
+            <div class="text-center py-16 text-gray-400">
+              <svg class="w-20 h-20 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              <p class="text-lg font-medium">Pas de schuifbalken aan om de impact te zien</p>
+              <p class="text-sm mt-2">De resultaten worden automatisch berekend</p>
+            </div>
+          </div>
+        </div>
+      </form>
+
+      <!-- Back Button -->
+      <div class="mt-8 text-center">
+        <a href="/?bsn={{ bsn }}" class="inline-flex items-center text-gray-600 hover:text-gray-900 font-medium">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Terug naar dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function interactiveWhatIf() {
+  return {
+    inkomen_werk: 35000,
+    huur_per_maand: 800,
+    vermogen: 10000,
+
+    formatMoney(value) {
+      return '€' + value.toLocaleString('nl-NL');
+    },
+
+    getPercentage(value, max) {
+      return Math.round((value / max) * 100);
+    }
+  }
+}
+
+// Auto-trigger calculation on load
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => htmx.trigger('#fullscreen-whatif-form', 'input'), 300);
+});
+</script>
+
+<style>
+.interactive-slider {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.blue-slider {
+  background: linear-gradient(to right, #dbeafe 0%, #60a5fa 100%);
+}
+
+.green-slider {
+  background: linear-gradient(to right, #d1fae5 0%, #34d399 100%);
+}
+
+.purple-slider {
+  background: linear-gradient(to right, #e9d5ff 0%, #a78bfa 100%);
+}
+
+.interactive-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  background: white;
+  border: 4px solid #3b82f6;
+  border-radius: 50%;
+  cursor: grab;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s;
+}
+
+.interactive-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.interactive-slider::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
+
+.green-slider::-webkit-slider-thumb {
+  border-color: #10b981;
+}
+
+.purple-slider::-webkit-slider-thumb {
+  border-color: #8b5cf6;
+}
+
+.interactive-slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: white;
+  border: 4px solid #3b82f6;
+  border-radius: 50%;
+  cursor: grab;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s;
+}
+
+.interactive-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.green-slider::-moz-range-thumb {
+  border-color: #10b981;
+}
+
+.purple-slider::-moz-range-thumb {
+  border-color: #8b5cf6;
+}
+</style>
+{% endblock %}

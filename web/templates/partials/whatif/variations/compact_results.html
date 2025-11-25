@@ -1,0 +1,105 @@
+<!-- Compact Results for Variation 1 -->
+<div class="space-y-5">
+  {% for law, data in results.items() %}
+  {% set original = original_results.get(law) %}
+  {% set result = data.get('result') %}
+
+  {% if law == 'zorgtoeslagwet' %}
+    {% set display_name = 'Zorgtoeslag' %}
+    {% set field = 'totale_zorgtoeslag_per_maand' %}
+  {% elif law == 'wet_op_de_huurtoeslag' %}
+    {% set display_name = 'Huurtoeslag' %}
+    {% set field = 'totale_huurtoeslag_per_maand' %}
+  {% elif law == 'participatiewet' %}
+    {% set display_name = 'Participatiewet' %}
+    {% set field = 'bijstand_per_maand' %}
+  {% else %}
+    {% set display_name = law %}
+    {% set field = None %}
+  {% endif %}
+
+  {% if result and hasattr(result, 'output') and field and field in result.output %}
+    {% set new_value = result.output[field] %}
+    {% set original_value = original.output[field] if original and hasattr(original, 'output') and field in original.output else new_value %}
+    {% set change = new_value - original_value %}
+
+    <div class="border-l-4 {% if change > 0 %}border-green-500{% elif change < 0 %}border-red-500{% else %}border-gray-300{% endif %} pl-4 py-2">
+      <div class="flex items-baseline justify-between mb-1">
+        <h3 class="text-sm font-semibold text-gray-700">{{ display_name }}:</h3>
+        <span class="text-xl font-bold {% if change > 0 %}text-green-600{% elif change < 0 %}text-red-600{% else %}text-gray-900{% endif %} tabular-nums">
+          €{{ "{:,.0f}".format(new_value) }}/mnd
+        </span>
+      </div>
+
+      {% if change != 0 %}
+      <div class="flex items-center justify-end space-x-2 text-xs">
+        <span class="text-gray-500">
+          {% if change > 0 %}↑{% else %}↓{% endif %}
+          was €{{ "{:,.0f}".format(original_value) }}/mnd
+        </span>
+        <span class="font-bold {% if change > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+          ({% if change > 0 %}+{% endif %}€{{ "{:,.0f}".format(change) }})
+        </span>
+      </div>
+      {% else %}
+      <p class="text-xs text-gray-500 text-right">→ geen verandering</p>
+      {% endif %}
+    </div>
+  {% elif result and hasattr(result, 'requirements_met') and not result.requirements_met %}
+    <div class="border-l-4 border-gray-300 pl-4 py-2">
+      <div class="flex items-baseline justify-between">
+        <h3 class="text-sm font-semibold text-gray-700">{{ display_name }}:</h3>
+        <span class="text-sm text-gray-400">Geen recht</span>
+      </div>
+    </div>
+  {% endif %}
+  {% endfor %}
+
+  <!-- Total Summary (if we have values) -->
+  {% set has_values = namespace(value=false) %}
+  {% set total_new = namespace(value=0) %}
+  {% set total_old = namespace(value=0) %}
+
+  {% for law, data in results.items() %}
+    {% set result = data.get('result') %}
+    {% set original = original_results.get(law) %}
+
+    {% if law == 'zorgtoeslagwet' %}
+      {% set field = 'totale_zorgtoeslag_per_maand' %}
+    {% elif law == 'wet_op_de_huurtoeslag' %}
+      {% set field = 'totale_huurtoeslag_per_maand' %}
+    {% elif law == 'participatiewet' %}
+      {% set field = 'bijstand_per_maand' %}
+    {% else %}
+      {% set field = None %}
+    {% endif %}
+
+    {% if result and hasattr(result, 'output') and field and field in result.output %}
+      {% set has_values.value = true %}
+      {% set total_new.value = total_new.value + result.output[field] %}
+      {% set total_old.value = total_old.value + (original.output[field] if original and hasattr(original, 'output') and field in original.output else result.output[field]) %}
+    {% endif %}
+  {% endfor %}
+
+  {% if has_values.value %}
+  {% set total_change = total_new.value - total_old.value %}
+  <div class="pt-4 mt-4 border-t-2 border-gray-300">
+    <div class="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-4">
+      <div class="flex items-baseline justify-between mb-2">
+        <h3 class="text-sm font-bold text-gray-900">TOTAAL:</h3>
+        <span class="text-2xl font-bold text-blue-600 tabular-nums">
+          €{{ "{:,.0f}".format(total_new.value) }}/mnd
+        </span>
+      </div>
+      {% if total_change != 0 %}
+      <div class="flex items-center justify-end text-sm">
+        <span class="mr-2 text-gray-600">was €{{ "{:,.0f}".format(total_old.value) }}/mnd</span>
+        <span class="px-3 py-1 rounded-full font-bold {% if total_change > 0 %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+          {% if total_change > 0 %}+{% endif %}€{{ "{:,.0f}".format(total_change) }}
+        </span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>

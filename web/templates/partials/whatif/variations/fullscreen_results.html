@@ -1,0 +1,151 @@
+<!-- Fullscreen Interactive Results -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+  {% for law, data in results.items() %}
+  {% set original = original_results.get(law) %}
+  {% set result = data.get('result') %}
+
+  {% if law == 'zorgtoeslagwet' %}
+    {% set display_name = 'Zorgtoeslag' %}
+    {% set icon_color = 'from-blue-400 to-blue-600' %}
+    {% set text_color = 'text-blue-600' %}
+    {% set border_color = 'border-blue-200' %}
+    {% set bg_color = 'bg-blue-50' %}
+    {% set field = 'totale_zorgtoeslag_per_maand' %}
+  {% elif law == 'wet_op_de_huurtoeslag' %}
+    {% set display_name = 'Huurtoeslag' %}
+    {% set icon_color = 'from-green-400 to-green-600' %}
+    {% set text_color = 'text-green-600' %}
+    {% set border_color = 'border-green-200' %}
+    {% set bg_color = 'bg-green-50' %}
+    {% set field = 'totale_huurtoeslag_per_maand' %}
+  {% elif law == 'participatiewet' %}
+    {% set display_name = 'Participatiewet' %}
+    {% set icon_color = 'from-purple-400 to-purple-600' %}
+    {% set text_color = 'text-purple-600' %}
+    {% set border_color = 'border-purple-200' %}
+    {% set bg_color = 'bg-purple-50' %}
+    {% set field = 'bijstand_per_maand' %}
+  {% endif %}
+
+  {% if result and hasattr(result, 'output') and field and field in result.output %}
+    {% set new_value = result.output[field] %}
+    {% set original_value = original.output[field] if original and hasattr(original, 'output') and field in original.output else new_value %}
+    {% set change = new_value - original_value %}
+    {% set change_pct = ((change / original_value * 100) if original_value != 0 else 0) %}
+
+    <div class="bg-white rounded-xl border-2 {{ border_color }} p-6 transform transition-all hover:scale-105 hover:shadow-xl">
+      <div class="flex items-center mb-4">
+        <div class="w-12 h-12 bg-gradient-to-br {{ icon_color }} rounded-lg flex items-center justify-center mr-3">
+          <svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900">{{ display_name }}</h3>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Nieuw bedrag</p>
+          <p class="text-3xl font-bold {{ text_color }} tabular-nums">
+            €{{ "{:,.0f}".format(new_value) }}
+            <span class="text-base text-gray-500 font-normal">/mnd</span>
+          </p>
+        </div>
+
+        {% if change != 0 %}
+        <div class="pt-3 border-t border-gray-200">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-500">Was:</span>
+            <span class="text-sm text-gray-600 tabular-nums">€{{ "{:,.0f}".format(original_value) }}/mnd</span>
+          </div>
+          <div class="mt-2 p-3 rounded-lg {{ bg_color }}">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-semibold text-gray-700">
+                {% if change > 0 %}📈 Toename{% else %}📉 Afname{% endif %}
+              </span>
+              <span class="text-lg font-bold {% if change > 0 %}text-green-600{% else %}text-red-600{% endif %} tabular-nums">
+                {% if change > 0 %}+{% endif %}€{{ "{:,.0f}".format(change) }}
+              </span>
+            </div>
+            {% if change_pct != 0 %}
+            <p class="text-xs text-gray-600 mt-1 text-right">
+              ({% if change_pct > 0 %}+{% endif %}{{ "{:.1f}".format(change_pct) }}%)
+            </p>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <div class="pt-3 border-t border-gray-200">
+          <div class="flex items-center justify-center p-3 bg-gray-50 rounded-lg">
+            <span class="text-sm text-gray-500">→ Geen verandering</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<!-- Total Summary -->
+{% set total_new = namespace(value=0) %}
+{% set total_old = namespace(value=0) %}
+{% for law, data in results.items() %}
+  {% set result = data.get('result') %}
+  {% set original = original_results.get(law) %}
+  {% if law == 'zorgtoeslagwet' %}
+    {% set field = 'totale_zorgtoeslag_per_maand' %}
+  {% elif law == 'wet_op_de_huurtoeslag' %}
+    {% set field = 'totale_huurtoeslag_per_maand' %}
+  {% elif law == 'participatiewet' %}
+    {% set field = 'bijstand_per_maand' %}
+  {% endif %}
+  {% if result and hasattr(result, 'output') and field and field in result.output %}
+    {% set total_new.value = total_new.value + result.output[field] %}
+    {% set total_old.value = total_old.value + (original.output[field] if original and hasattr(original, 'output') and field in original.output else result.output[field]) %}
+  {% endif %}
+{% endfor %}
+{% set total_change = total_new.value - total_old.value %}
+{% set total_change_pct = ((total_change / total_old.value * 100) if total_old.value != 0 else 0) %}
+
+<div class="mt-8">
+  <div class="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 text-white shadow-2xl">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-sm font-semibold uppercase tracking-wider opacity-90 mb-2">Totaal per maand</h3>
+        <p class="text-5xl font-bold tabular-nums">
+          €{{ "{:,.0f}".format(total_new.value) }}
+        </p>
+      </div>
+
+      {% if total_change != 0 %}
+      <div class="text-right">
+        <div class="inline-block bg-white/20 backdrop-blur-sm rounded-xl px-6 py-4">
+          <p class="text-xs opacity-75 mb-1">Verschil</p>
+          <p class="text-3xl font-bold tabular-nums">
+            {% if total_change > 0 %}+{% endif %}€{{ "{:,.0f}".format(total_change) }}
+          </p>
+          {% if total_change_pct != 0 %}
+          <p class="text-sm opacity-90 mt-1">
+            ({% if total_change_pct > 0 %}+{% endif %}{{ "{:.1f}".format(total_change_pct) }}%)
+          </p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if total_change != 0 %}
+    <div class="mt-6 pt-6 border-t border-white/20">
+      <p class="text-sm opacity-90">
+        {% if total_change > 0 %}
+          ✅ <strong>Je krijgt €{{ "{:,.0f}".format(total_change) }} meer per maand</strong> in dit scenario
+        {% else %}
+          ⚠️ <strong>Je krijgt €{{ "{:,.0f}".format(total_change * -1) }} minder per maand</strong> in dit scenario
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>

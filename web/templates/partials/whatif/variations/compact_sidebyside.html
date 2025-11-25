@@ -1,0 +1,194 @@
+<!-- Variation 1: Compact Side-by-Side (Exact ASCII Design) -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+  <div class="container mx-auto px-4 max-w-6xl">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-900 mb-1">Wat-als scenario</h1>
+      <p class="text-sm text-gray-600">Sleep de schuifbalken om direct het effect te zien</p>
+    </div>
+
+    <!-- Main Panel: Exact ASCII Layout -->
+    <div
+      class="bg-white rounded-lg shadow-xl border-2 border-gray-300 overflow-hidden"
+      x-data="whatIfPanel()"
+    >
+      <div class="grid grid-cols-2 divide-x-2 divide-gray-300">
+        <!-- Left: Jouw Gegevens -->
+        <div class="p-6 bg-blue-50/30">
+          <h2 class="text-lg font-bold text-gray-900 mb-6 pb-3 border-b-2 border-gray-300">
+            Jouw Gegevens
+          </h2>
+
+          <form
+            id="whatif-compact-form"
+            hx-post="/whatif/variations/compact/calculate?bsn={{ bsn }}"
+            hx-target="#compact-results"
+            hx-trigger="input changed delay:300ms from:input"
+            hx-indicator=".compact-loading"
+          >
+            <input type="hidden" name="bsn" value="{{ bsn }}">
+
+            <div class="space-y-6">
+              <!-- Inkomen -->
+              <div>
+                <div class="flex items-baseline justify-between mb-2">
+                  <label class="text-sm font-semibold text-gray-700">Inkomen:</label>
+                  <span class="text-lg font-bold text-blue-600 tabular-nums" x-text="'€' + inkomen_werk.toLocaleString('nl-NL')">
+                    €35.000
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  name="inkomen_werk"
+                  min="0"
+                  max="80000"
+                  step="1000"
+                  value="35000"
+                  x-model="inkomen_werk"
+                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer range-slider"
+                >
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>€0</span>
+                  <span>€80k</span>
+                </div>
+              </div>
+
+              <!-- Huur -->
+              <div>
+                <div class="flex items-baseline justify-between mb-2">
+                  <label class="text-sm font-semibold text-gray-700">Huur:</label>
+                  <span class="text-lg font-bold text-blue-600 tabular-nums" x-text="'€' + huur_per_maand.toLocaleString('nl-NL') + '/mnd'">
+                    €800/mnd
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  name="huur_per_maand"
+                  min="0"
+                  max="2000"
+                  step="25"
+                  value="800"
+                  x-model="huur_per_maand"
+                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer range-slider"
+                >
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>€0</span>
+                  <span>€2k</span>
+                </div>
+              </div>
+
+              <!-- Vermogen -->
+              <div>
+                <div class="flex items-baseline justify-between mb-2">
+                  <label class="text-sm font-semibold text-gray-700">Vermogen:</label>
+                  <span class="text-lg font-bold text-blue-600 tabular-nums" x-text="'€' + vermogen.toLocaleString('nl-NL')">
+                    €10.000
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  name="vermogen"
+                  min="0"
+                  max="100000"
+                  step="1000"
+                  value="10000"
+                  x-model="vermogen"
+                  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer range-slider"
+                >
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>€0</span>
+                  <span>€100k</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-6 p-3 bg-blue-100 rounded text-center">
+              <p class="text-xs text-blue-800 font-medium compact-loading htmx-indicator">
+                <span class="inline-block animate-pulse">⚡ Berekenen...</span>
+              </p>
+              <p class="text-xs text-blue-700 compact-not-loading">
+                Direct updaten bij slepen
+              </p>
+            </div>
+          </form>
+        </div>
+
+        <!-- Right: Effect op regelingen -->
+        <div class="p-6 bg-green-50/30">
+          <h2 class="text-lg font-bold text-gray-900 mb-6 pb-3 border-b-2 border-gray-300">
+            Effect op regelingen
+          </h2>
+
+          <div id="compact-results">
+            <!-- Initial state -->
+            <div class="text-center py-12 text-gray-400">
+              <svg class="mx-auto h-12 w-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              <p class="text-sm">Pas de schuifbalken aan</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 flex justify-between items-center">
+      <a href="/?bsn={{ bsn }}" class="text-blue-600 hover:text-blue-800 text-sm flex items-center">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Terug
+      </a>
+      <p class="text-xs text-gray-500">Resultaten zijn indicatief</p>
+    </div>
+  </div>
+</div>
+
+<script>
+function whatIfPanel() {
+  return {
+    inkomen_werk: 35000,
+    huur_per_maand: 800,
+    vermogen: 10000
+  }
+}
+
+// Auto-trigger on load
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => htmx.trigger('#whatif-compact-form', 'input'), 200);
+});
+</script>
+
+<style>
+.range-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #2563eb;
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.range-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #2563eb;
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.htmx-request .compact-loading {
+  display: block !important;
+}
+
+.htmx-request .compact-not-loading {
+  display: none;
+}
+</style>
+{% endblock %}
