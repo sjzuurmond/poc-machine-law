@@ -207,12 +207,9 @@ async def calculate_direct_manipulation(
                 except (ValueError, TypeError):
                     modified_person[key] = value
 
-        # Calculate key law results
-        laws_to_check = [
-            ("zorgtoeslagwet", "TOESLAGEN"),
-            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
-            ("participatiewet", "GEMEENTE"),
-        ]
+        # Get discoverable laws sorted by impact for this person
+        discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
+        laws_to_check = [(law_info["law"], law_info["service"]) for law_info in discoverable_laws]
 
         results = {}
         for law, service in laws_to_check:
@@ -491,15 +488,21 @@ async def calculate_template_scenario(
                     # Keep as string for text fields
                     modified_person[key] = value
 
-        # Calculate key law results
-        laws_to_check = [
-            ("zorgtoeslagwet", "TOESLAGEN", "Zorgtoeslag"),
-            ("wet_op_de_huurtoeslag", "TOESLAGEN", "Huurtoeslag"),
-            ("participatiewet", "GEMEENTE", "Participatiewet"),
-        ]
+        # Get discoverable laws sorted by impact for this person
+        discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
+
+        # Map law names to display names
+        display_names = {
+            "zorgtoeslagwet": "Zorgtoeslag",
+            "wet_op_de_huurtoeslag": "Huurtoeslag",
+            "participatiewet": "Participatiewet",
+        }
 
         results = []
-        for law, service, display_name in laws_to_check:
+        for law_info in discoverable_laws:
+            law = law_info["law"]
+            service = law_info["service"]
+            display_name = display_names.get(law, law)
             try:
                 original_result = machine_service.evaluate(
                     service=service,
@@ -766,11 +769,9 @@ async def calculate_compact_variation(
                 except (ValueError, TypeError):
                     modified_person[key] = value
 
-        laws_to_check = [
-            ("zorgtoeslagwet", "TOESLAGEN"),
-            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
-            ("participatiewet", "GEMEENTE"),
-        ]
+        # Get discoverable laws sorted by impact for this person
+        discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
+        laws_to_check = [(law_info["law"], law_info["service"]) for law_info in discoverable_laws]
 
         results = {}
         original_results = {}
@@ -834,11 +835,9 @@ async def calculate_widget_variation(
                 except (ValueError, TypeError):
                     modified_person[key] = value
 
-        laws_to_check = [
-            ("zorgtoeslagwet", "TOESLAGEN"),
-            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
-            ("participatiewet", "GEMEENTE"),
-        ]
+        # Get discoverable laws sorted by impact for this person
+        discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
+        laws_to_check = [(law_info["law"], law_info["service"]) for law_info in discoverable_laws]
 
         results = {}
         original_results = {}
@@ -902,11 +901,9 @@ async def calculate_fullscreen_variation(
                 except (ValueError, TypeError):
                     modified_person[key] = value
 
-        laws_to_check = [
-            ("zorgtoeslagwet", "TOESLAGEN"),
-            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
-            ("participatiewet", "GEMEENTE"),
-        ]
+        # Get discoverable laws sorted by impact for this person
+        discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
+        laws_to_check = [(law_info["law"], law_info["service"]) for law_info in discoverable_laws]
 
         results = {}
         original_results = {}
@@ -970,11 +967,9 @@ async def calculate_modal_variation(
                 except (ValueError, TypeError):
                     modified_person[key] = value
 
-        laws_to_check = [
-            ("zorgtoeslagwet", "TOESLAGEN"),
-            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
-            ("participatiewet", "GEMEENTE"),
-        ]
+        # Get discoverable laws sorted by impact for this person
+        discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
+        laws_to_check = [(law_info["law"], law_info["service"]) for law_info in discoverable_laws]
 
         results = {}
         original_results = {}
