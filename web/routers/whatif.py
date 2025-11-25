@@ -8,10 +8,36 @@ from starlette.responses import HTMLResponse
 
 from web.dependencies import TODAY, get_case_manager, get_machine_service, templates
 from web.engines.case_manager_interface import CaseManagerInterface
-from web.engines.engine_interface import EngineInterface
+from web.engines.engine_interface import EngineInterface, RuleResult
 
 router = APIRouter(prefix="/whatif", tags=["whatif"])
 logger = logging.getLogger(__name__)
+
+
+def extract_missing_fields(result: RuleResult, machine_service: EngineInterface) -> list[str]:
+    """
+    Extract the list of missing required field names from the result's path tree.
+
+    Args:
+        result: The RuleResult containing the evaluation path
+        machine_service: The engine interface for extracting value tree
+
+    Returns:
+        List of missing required field names
+    """
+    missing_fields = []
+    if result.missing_required and result.path:
+        value_tree = machine_service.extract_value_tree(result.path)
+
+        for path, node_info in value_tree.items():
+            if node_info.get("required") and not node_info.get("result"):
+                # Get the field name (last part of the path)
+                field_name = path.split(".")[-1]
+                if field_name not in missing_fields:  # Avoid duplicates
+                    missing_fields.append(field_name)
+
+    return missing_fields
+
 
 
 @router.get("/direct-manipulation", response_class=HTMLResponse)
@@ -135,9 +161,13 @@ async def calculate_direct_manipulation(
                     reference_date=TODAY,
                     overwrite_input=modified_person,
                 )
+                # Extract missing fields if any
+                missing_fields = extract_missing_fields(result, machine_service)
+
                 results[law] = {
                     "result": result,
                     "service": service,
+                    "missing_fields": missing_fields,
                 }
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
@@ -426,6 +456,9 @@ async def calculate_template_scenario(
                 original_value = _extract_main_value(original_result)
                 new_value = _extract_main_value(new_result)
 
+                # Extract missing fields if any
+                missing_fields = extract_missing_fields(new_result, machine_service)
+
                 results.append(
                     {
                         "law": law,
@@ -436,6 +469,7 @@ async def calculate_template_scenario(
                         "new": new_result,
                         "new_value": new_value,
                         "change": new_value - original_value if original_value and new_value else None,
+                        "missing_fields": missing_fields,
                     }
                 )
             except Exception as e:
@@ -686,7 +720,14 @@ async def calculate_compact_variation(
                     reference_date=TODAY,
                     overwrite_input=modified_person,
                 )
-                results[law] = {"result": result, "service": service}
+                # Extract missing fields if any
+                missing_fields = extract_missing_fields(result, machine_service)
+
+                results[law] = {
+                    "result": result,
+                    "service": service,
+                    "missing_fields": missing_fields,
+                }
                 original_result = machine_service.evaluate(
                     service=service,
                     law=law,
@@ -747,7 +788,14 @@ async def calculate_widget_variation(
                     reference_date=TODAY,
                     overwrite_input=modified_person,
                 )
-                results[law] = {"result": result, "service": service}
+                # Extract missing fields if any
+                missing_fields = extract_missing_fields(result, machine_service)
+
+                results[law] = {
+                    "result": result,
+                    "service": service,
+                    "missing_fields": missing_fields,
+                }
                 original_result = machine_service.evaluate(
                     service=service,
                     law=law,
@@ -808,7 +856,14 @@ async def calculate_fullscreen_variation(
                     reference_date=TODAY,
                     overwrite_input=modified_person,
                 )
-                results[law] = {"result": result, "service": service}
+                # Extract missing fields if any
+                missing_fields = extract_missing_fields(result, machine_service)
+
+                results[law] = {
+                    "result": result,
+                    "service": service,
+                    "missing_fields": missing_fields,
+                }
                 original_result = machine_service.evaluate(
                     service=service,
                     law=law,
@@ -869,7 +924,14 @@ async def calculate_modal_variation(
                     reference_date=TODAY,
                     overwrite_input=modified_person,
                 )
-                results[law] = {"result": result, "service": service}
+                # Extract missing fields if any
+                missing_fields = extract_missing_fields(result, machine_service)
+
+                results[law] = {
+                    "result": result,
+                    "service": service,
+                    "missing_fields": missing_fields,
+                }
                 original_result = machine_service.evaluate(
                     service=service,
                     law=law,

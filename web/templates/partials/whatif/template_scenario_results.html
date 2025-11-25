@@ -61,11 +61,11 @@
       </div>
 
       <!-- Show missing required fields if any -->
-      {% if result.new and result.new.missing_required is defined and result.new.missing_required %}
+      {% if result.missing_fields is defined and result.missing_fields %}
       <div class="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
         <p class="text-xs font-semibold text-yellow-800 mb-2">⚠️ Ontbrekende gegevens:</p>
         <ul class="text-xs text-yellow-700 space-y-1">
-          {% for field in result.new.missing_required %}
+          {% for field in result.missing_fields %}
           <li class="flex items-center">
             <span class="mr-2">•</span>
             <span class="font-mono">{{ field }}</span>
