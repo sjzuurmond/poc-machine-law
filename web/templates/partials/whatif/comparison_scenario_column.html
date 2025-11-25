@@ -1,0 +1,102 @@
+<!-- Comparison Scenario Column -->
+<th class="p-4 text-center font-bold text-gray-900 min-w-[200px] border-l-2 border-gray-200">
+  <div class="flex flex-col items-center">
+    <span class="text-purple-600">{{ scenario_name }}</span>
+    <span class="text-xs text-gray-500 font-normal mt-1">Scenario vergelijking</span>
+  </div>
+</th>
+
+<!-- This needs to be rendered as multiple cells matching the table structure -->
+<script>
+  (function() {
+    // Get the newly added header cell
+    const header = document.currentScript.previousElementSibling;
+
+    // Get the table body
+    const tbody = header.closest('table').querySelector('tbody');
+    const rows = tbody.querySelectorAll('tr');
+
+    // Prepare the data
+    const paramChanges = {{ param_changes|tojson }};
+    const scenarioResults = {{ scenario_results|tojson }};
+    const modifiedPerson = {{ modified_person|tojson }};
+
+    // Track which row we're on
+    let dataRowIndex = 0;
+
+    // Add cells to each data row
+    rows.forEach((row) => {
+      const firstCell = row.querySelector('td');
+      if (!firstCell) return;
+
+      const cellText = firstCell.textContent.trim();
+      const isHeaderRow = row.classList.contains('bg-blue-50') || row.classList.contains('bg-green-50') || row.classList.contains('bg-blue-100');
+
+      if (isHeaderRow) {
+        // Skip header rows (they span all columns)
+        return;
+      }
+
+      // Create new cell
+      const cell = document.createElement('td');
+      cell.className = 'p-4 text-center border-l-2 border-gray-200';
+
+      // Determine what to show based on row
+      if (cellText === 'Inkomen uit werk') {
+        const value = modifiedPerson.inkomen_werk || 0;
+        const original = paramChanges.inkomen_werk?.original;
+        const isChanged = original !== undefined && original !== value;
+
+        cell.innerHTML = `
+          <span class="font-semibold ${isChanged ? 'text-purple-600' : ''}">€ ${value.toLocaleString('nl-NL')}</span>
+          ${isChanged ? '<div class="text-xs text-gray-500 mt-1">' + (value > original ? '↑' : '↓') + ' was € ' + original.toLocaleString('nl-NL') + '</div>' : ''}
+        `;
+      } else if (cellText === 'Huur per maand') {
+        const value = modifiedPerson.huur_per_maand || 0;
+        const original = paramChanges.huur_per_maand?.original;
+        const isChanged = original !== undefined && original !== value;
+
+        cell.innerHTML = `
+          <span class="font-semibold ${isChanged ? 'text-purple-600' : ''}">€ ${value.toLocaleString('nl-NL')}</span>
+          ${isChanged ? '<div class="text-xs text-gray-500 mt-1">' + (value > original ? '↑' : '↓') + ' was € ' + original.toLocaleString('nl-NL') + '</div>' : ''}
+        `;
+      } else if (cellText === 'Inkomen uit onderneming') {
+        const value = modifiedPerson.inkomen_onderneming || 0;
+        const original = paramChanges.inkomen_onderneming?.original;
+        const isChanged = original !== undefined && original !== value;
+
+        cell.innerHTML = `
+          <span class="font-semibold ${isChanged ? 'text-purple-600' : ''}">€ ${value.toLocaleString('nl-NL')}</span>
+          ${isChanged ? '<div class="text-xs text-gray-500 mt-1">' + (value > original ? '↑' : '↓') + ' was € ' + original.toLocaleString('nl-NL') + '</div>' : ''}
+        `;
+      } else if (cellText === 'Vermogen') {
+        const value = modifiedPerson.vermogen || 0;
+        const original = paramChanges.vermogen?.original;
+        const isChanged = original !== undefined && original !== value;
+
+        cell.innerHTML = `
+          <span class="font-semibold ${isChanged ? 'text-purple-600' : ''}">€ ${value.toLocaleString('nl-NL')}</span>
+          ${isChanged ? '<div class="text-xs text-gray-500 mt-1">' + (value > original ? '↑' : '↓') + ' was € ' + original.toLocaleString('nl-NL') + '</div>' : ''}
+        `;
+      } else if (cellText.includes('Zorgtoeslag') || cellText.includes('Huurtoeslag') || cellText.includes('Participatiewet')) {
+        // Find the matching result
+        const result = scenarioResults.find(r => cellText.includes(r.display_name));
+        if (result && result.value !== null) {
+          cell.innerHTML = `<span class="font-bold text-purple-600">€ ${result.value.toLocaleString('nl-NL')}/mnd</span>`;
+        } else {
+          cell.innerHTML = `<span class="text-gray-400">-</span>`;
+        }
+      } else if (cellText === 'TOTAAL Toeslagen') {
+        // Calculate total
+        const total = scenarioResults.reduce((sum, r) => sum + (r.value || 0), 0);
+        cell.className = 'p-4 text-center border-l-2 border-gray-200 bg-blue-100';
+        cell.innerHTML = `<span class="text-xl font-bold text-purple-600">€ ${total.toLocaleString('nl-NL')}/mnd</span>`;
+      }
+
+      row.appendChild(cell);
+    });
+
+    // Remove this script tag
+    document.currentScript.remove();
+  })();
+</script>

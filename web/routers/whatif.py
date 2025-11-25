@@ -1,0 +1,585 @@
+"""What-if scenario analysis routes."""
+
+import logging
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from starlette.responses import HTMLResponse
+
+from web.dependencies import get_case_manager, get_engine, get_templates
+from web.engines.case_manager_interface import CaseManagerInterface
+from web.engines.engine_interface import EngineInterface
+
+router = APIRouter(prefix="/whatif", tags=["whatif"])
+logger = logging.getLogger(__name__)
+
+
+@router.get("/direct-manipulation", response_class=HTMLResponse)
+async def direct_manipulation_panel(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+    case_manager: CaseManagerInterface = Depends(get_case_manager),
+) -> HTMLResponse:
+    """
+    Render the inline direct manipulation panel with sliders.
+
+    Users can adjust values with sliders and see real-time impact.
+    """
+    try:
+        # Get current person data
+        person = await engine.get_person(bsn)
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+        # Get all cases for this person
+        cases = await case_manager.get_cases_by_bsn(bsn)
+
+        # Define the main adjustable parameters with their ranges
+        adjustable_params = [
+            {
+                "key": "inkomen_werk",
+                "label": "Inkomen uit werk",
+                "current": person.get("inkomen_werk", 0),
+                "min": 0,
+                "max": 80000,
+                "step": 1000,
+                "format": "currency",
+            },
+            {
+                "key": "huur_per_maand",
+                "label": "Huur per maand",
+                "current": person.get("huur_per_maand", 0),
+                "min": 0,
+                "max": 2000,
+                "step": 50,
+                "format": "currency_monthly",
+            },
+            {
+                "key": "inkomen_onderneming",
+                "label": "Inkomen uit onderneming",
+                "current": person.get("inkomen_onderneming", 0),
+                "min": 0,
+                "max": 100000,
+                "step": 1000,
+                "format": "currency",
+            },
+            {
+                "key": "vermogen",
+                "label": "Vermogen",
+                "current": person.get("vermogen", 0),
+                "min": 0,
+                "max": 200000,
+                "step": 5000,
+                "format": "currency",
+            },
+        ]
+
+        template = templates.get_template("partials/whatif/direct_manipulation.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                person=person,
+                bsn=bsn,
+                adjustable_params=adjustable_params,
+                cases=cases,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error loading direct manipulation panel: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/direct-manipulation/calculate", response_class=HTMLResponse)
+async def calculate_direct_manipulation(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """
+    Calculate impact of adjusted parameters in real-time.
+
+    Receives form data with adjusted values and returns updated results.
+    """
+    try:
+        # Get form data
+        form_data = await request.form()
+
+        # Build modified person data
+        person = await engine.get_person(bsn)
+        modified_person = person.copy()
+
+        # Update with form values
+        for key, value in form_data.items():
+            if key != "bsn":
+                try:
+                    modified_person[key] = int(value) if value else 0
+                except (ValueError, TypeError):
+                    modified_person[key] = value
+
+        # Calculate key law results
+        laws_to_check = [
+            ("zorgtoeslagwet", "TOESLAGEN"),
+            ("wet_op_de_huurtoeslag", "TOESLAGEN"),
+            ("participatiewet", "GEMEENTE"),
+        ]
+
+        results = {}
+        for law, service in laws_to_check:
+            try:
+                result = await engine.execute_law(law, modified_person)
+                results[law] = {
+                    "result": result,
+                    "service": service,
+                }
+            except Exception as e:
+                logger.warning(f"Failed to calculate {law}: {e}")
+                results[law] = {"error": str(e)}
+
+        # Get original results for comparison
+        original_results = {}
+        for law, service in laws_to_check:
+            try:
+                result = await engine.execute_law(law, person)
+                original_results[law] = result
+            except Exception as e:
+                logger.warning(f"Failed to calculate original {law}: {e}")
+
+        template = templates.get_template("partials/whatif/direct_manipulation_results.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                results=results,
+                original_results=original_results,
+                modified_person=modified_person,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error calculating direct manipulation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/templates", response_class=HTMLResponse)
+async def template_scenarios_panel(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """
+    Render the template-based scenarios panel.
+
+    Users can choose from pre-defined life scenarios.
+    """
+    try:
+        # Get current person data
+        person = await engine.get_person(bsn)
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+        # Define scenario templates
+        scenario_templates = [
+            {
+                "id": "income_increase",
+                "name": "Mijn inkomen verandert",
+                "description": "Ik ga meer uren werken of krijg een loonsverhoging",
+                "icon": "💼",
+                "fields": ["inkomen_werk"],
+            },
+            {
+                "id": "moving",
+                "name": "Ik ga verhuizen",
+                "description": "Ik verhuis naar een andere woning met andere huurprijs",
+                "icon": "🏠",
+                "fields": ["huur_per_maand", "postcode", "woonplaats"],
+            },
+            {
+                "id": "relationship_change",
+                "name": "Ik ga samenwonen/scheiden",
+                "description": "Mijn burgerlijke staat verandert",
+                "icon": "👥",
+                "fields": ["burgerlijke_staat", "partner_inkomen"],
+            },
+            {
+                "id": "self_employed",
+                "name": "Ik word zelfstandig ondernemer",
+                "description": "Ik start als ZZP'er of ondernemer",
+                "icon": "🚀",
+                "fields": ["inkomen_onderneming", "inkomen_werk"],
+            },
+            {
+                "id": "retirement",
+                "name": "Ik ga met pensioen",
+                "description": "Ik stop met werken en krijg AOW/pensioen",
+                "icon": "🌴",
+                "fields": ["inkomen_werk", "aow", "pensioen"],
+            },
+            {
+                "id": "custom",
+                "name": "Aangepast scenario (zelf kiezen)",
+                "description": "Kies zelf welke gegevens je wilt aanpassen",
+                "icon": "⚙️",
+                "fields": [],
+            },
+        ]
+
+        template = templates.get_template("partials/whatif/template_scenarios.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                person=person,
+                bsn=bsn,
+                scenario_templates=scenario_templates,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error loading template scenarios panel: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/templates/{scenario_id}/form", response_class=HTMLResponse)
+async def template_scenario_form(
+    request: Request,
+    scenario_id: str,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """
+    Render the form for a specific scenario template.
+    """
+    try:
+        person = await engine.get_person(bsn)
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+        # Define field configurations for each scenario
+        scenario_fields = {
+            "income_increase": [
+                {
+                    "key": "inkomen_werk",
+                    "label": "Nieuw inkomen uit werk",
+                    "type": "number",
+                    "current": person.get("inkomen_werk", 0),
+                    "placeholder": "Bijv. 45000",
+                }
+            ],
+            "moving": [
+                {
+                    "key": "huur_per_maand",
+                    "label": "Nieuwe huur per maand",
+                    "type": "number",
+                    "current": person.get("huur_per_maand", 0),
+                    "placeholder": "Bijv. 850",
+                },
+                {
+                    "key": "postcode",
+                    "label": "Nieuwe postcode",
+                    "type": "text",
+                    "current": person.get("postcode", ""),
+                    "placeholder": "Bijv. 1234AB",
+                },
+                {
+                    "key": "woonplaats",
+                    "label": "Nieuwe woonplaats",
+                    "type": "text",
+                    "current": person.get("woonplaats", ""),
+                    "placeholder": "Bijv. Amsterdam",
+                },
+            ],
+            "relationship_change": [
+                {
+                    "key": "burgerlijke_staat",
+                    "label": "Burgerlijke staat",
+                    "type": "select",
+                    "current": person.get("burgerlijke_staat", ""),
+                    "options": ["alleenstaand", "gehuwd", "samenwonend", "gescheiden"],
+                },
+                {
+                    "key": "partner_inkomen",
+                    "label": "Inkomen partner (indien van toepassing)",
+                    "type": "number",
+                    "current": person.get("partner_inkomen", 0),
+                    "placeholder": "Bijv. 35000",
+                },
+            ],
+            "self_employed": [
+                {
+                    "key": "inkomen_onderneming",
+                    "label": "Inkomen uit onderneming",
+                    "type": "number",
+                    "current": person.get("inkomen_onderneming", 0),
+                    "placeholder": "Bijv. 40000",
+                },
+                {
+                    "key": "inkomen_werk",
+                    "label": "Inkomen uit werk (als je deels in dienst blijft)",
+                    "type": "number",
+                    "current": person.get("inkomen_werk", 0),
+                    "placeholder": "Bijv. 15000",
+                },
+            ],
+            "retirement": [
+                {
+                    "key": "inkomen_werk",
+                    "label": "Inkomen uit werk (0 als je stopt)",
+                    "type": "number",
+                    "current": person.get("inkomen_werk", 0),
+                    "placeholder": "0",
+                },
+                {
+                    "key": "aow",
+                    "label": "AOW per jaar",
+                    "type": "number",
+                    "current": person.get("aow", 0),
+                    "placeholder": "Bijv. 14000",
+                },
+                {
+                    "key": "pensioen",
+                    "label": "Pensioen per jaar",
+                    "type": "number",
+                    "current": person.get("pensioen", 0),
+                    "placeholder": "Bijv. 20000",
+                },
+            ],
+        }
+
+        fields = scenario_fields.get(scenario_id, [])
+
+        template = templates.get_template("partials/whatif/template_scenario_form.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                scenario_id=scenario_id,
+                bsn=bsn,
+                fields=fields,
+                person=person,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error loading scenario form: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/templates/calculate", response_class=HTMLResponse)
+async def calculate_template_scenario(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """
+    Calculate impact of template scenario.
+    """
+    try:
+        form_data = await request.form()
+
+        # Build modified person data
+        person = await engine.get_person(bsn)
+        modified_person = person.copy()
+
+        # Update with form values
+        for key, value in form_data.items():
+            if key not in ["bsn", "scenario_id"]:
+                try:
+                    # Try to convert to int for numeric fields
+                    modified_person[key] = int(value) if value else 0
+                except (ValueError, TypeError):
+                    # Keep as string for text fields
+                    modified_person[key] = value
+
+        # Calculate key law results
+        laws_to_check = [
+            ("zorgtoeslagwet", "TOESLAGEN", "Zorgtoeslag"),
+            ("wet_op_de_huurtoeslag", "TOESLAGEN", "Huurtoeslag"),
+            ("participatiewet", "GEMEENTE", "Participatiewet"),
+        ]
+
+        results = []
+        for law, service, display_name in laws_to_check:
+            try:
+                original_result = await engine.execute_law(law, person)
+                new_result = await engine.execute_law(law, modified_person)
+
+                # Extract main output value
+                original_value = _extract_main_value(original_result)
+                new_value = _extract_main_value(new_result)
+
+                results.append(
+                    {
+                        "law": law,
+                        "display_name": display_name,
+                        "service": service,
+                        "original": original_result,
+                        "original_value": original_value,
+                        "new": new_result,
+                        "new_value": new_value,
+                        "change": new_value - original_value if original_value and new_value else None,
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to calculate {law}: {e}")
+
+        template = templates.get_template("partials/whatif/template_scenario_results.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                results=results,
+                modified_person=modified_person,
+                original_person=person,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error calculating template scenario: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/comparison", response_class=HTMLResponse)
+async def comparison_panel(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """
+    Render the comparison mode panel for side-by-side scenario comparison.
+    """
+    try:
+        # Get current person data
+        person = await engine.get_person(bsn)
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+        # Calculate current baseline
+        laws_to_check = [
+            ("zorgtoeslagwet", "TOESLAGEN", "Zorgtoeslag"),
+            ("wet_op_de_huurtoeslag", "TOESLAGEN", "Huurtoeslag"),
+            ("participatiewet", "GEMEENTE", "Participatiewet"),
+        ]
+
+        current_results = []
+        for law, service, display_name in laws_to_check:
+            try:
+                result = await engine.execute_law(law, person)
+                value = _extract_main_value(result)
+                current_results.append(
+                    {
+                        "law": law,
+                        "display_name": display_name,
+                        "value": value,
+                        "result": result,
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to calculate {law}: {e}")
+
+        template = templates.get_template("partials/whatif/comparison.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                person=person,
+                bsn=bsn,
+                current_results=current_results,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error loading comparison panel: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/comparison/add-scenario", response_class=HTMLResponse)
+async def add_comparison_scenario(
+    request: Request,
+    bsn: str,
+    templates=Depends(get_templates),
+    engine: EngineInterface = Depends(get_engine),
+) -> HTMLResponse:
+    """
+    Add a new scenario to the comparison view.
+    """
+    try:
+        form_data = await request.form()
+        scenario_name = form_data.get("scenario_name", "Nieuw scenario")
+
+        # Build modified person data
+        person = await engine.get_person(bsn)
+        modified_person = person.copy()
+
+        # Update with form values
+        for key, value in form_data.items():
+            if key not in ["bsn", "scenario_name"]:
+                try:
+                    modified_person[key] = int(value) if value else 0
+                except (ValueError, TypeError):
+                    modified_person[key] = value
+
+        # Calculate law results
+        laws_to_check = [
+            ("zorgtoeslagwet", "TOESLAGEN", "Zorgtoeslag"),
+            ("wet_op_de_huurtoeslag", "TOESLAGEN", "Huurtoeslag"),
+            ("participatiewet", "GEMEENTE", "Participatiewet"),
+        ]
+
+        scenario_results = []
+        for law, service, display_name in laws_to_check:
+            try:
+                result = await engine.execute_law(law, modified_person)
+                value = _extract_main_value(result)
+                scenario_results.append(
+                    {
+                        "law": law,
+                        "display_name": display_name,
+                        "value": value,
+                        "result": result,
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to calculate {law}: {e}")
+
+        # Calculate key parameter changes
+        param_changes = {}
+        for key in ["inkomen_werk", "huur_per_maand", "inkomen_onderneming", "vermogen"]:
+            original = person.get(key, 0)
+            new = modified_person.get(key, 0)
+            if original != new:
+                param_changes[key] = {"original": original, "new": new}
+
+        template = templates.get_template("partials/whatif/comparison_scenario_column.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                scenario_name=scenario_name,
+                scenario_results=scenario_results,
+                param_changes=param_changes,
+                modified_person=modified_person,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error adding comparison scenario: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _extract_main_value(result: Any) -> float | None:
+    """Extract the main monetary value from a law result."""
+    if not result or not hasattr(result, "output"):
+        return None
+
+    output = result.output
+
+    # Try common output keys
+    for key in [
+        "totale_zorgtoeslag_per_maand",
+        "totale_huurtoeslag_per_maand",
+        "bijstand_per_maand",
+        "toeslag",
+        "uitkering",
+        "bedrag",
+    ]:
+        if key in output:
+            value = output[key]
+            if isinstance(value, (int, float)):
+                return float(value)
+
+    return None

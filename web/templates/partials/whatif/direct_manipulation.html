@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+  <div class="container mx-auto px-4">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">Wat-als scenario: Direct aanpassen</h1>
+      <p class="text-gray-600">Pas je gegevens aan met de schuifbalken en zie direct het effect op je regelingen</p>
+    </div>
+
+    <!-- Main content: Split view -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Left panel: Adjustable parameters -->
+      <div class="bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-6">Jouw gegevens</h2>
+
+        <form
+          id="whatif-form"
+          hx-post="/whatif/direct-manipulation/calculate?bsn={{ bsn }}"
+          hx-target="#whatif-results"
+          hx-trigger="input changed delay:500ms from:input[type='range'], input changed delay:800ms from:input[type='number']"
+          hx-indicator="#whatif-loading"
+          x-data="directManipulation()"
+        >
+          <input type="hidden" name="bsn" value="{{ bsn }}">
+
+          {% for param in adjustable_params %}
+          <div class="mb-8">
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-sm font-medium text-gray-700">
+                {{ param.label }}
+              </label>
+              <div class="flex items-center space-x-2">
+                {% if param.format == 'currency' %}
+                <span class="text-lg font-bold text-blue-600" x-text="formatCurrency({{ param.key }})">
+                  € {{ "{:,.0f}".format(param.current) }}
+                </span>
+                {% elif param.format == 'currency_monthly' %}
+                <span class="text-lg font-bold text-blue-600" x-text="formatCurrency({{ param.key }}) + '/mnd'">
+                  € {{ "{:,.0f}".format(param.current) }}/mnd
+                </span>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="relative">
+              <input
+                type="range"
+                name="{{ param.key }}"
+                id="{{ param.key }}_range"
+                min="{{ param.min }}"
+                max="{{ param.max }}"
+                step="{{ param.step }}"
+                value="{{ param.current }}"
+                x-model="{{ param.key }}"
+                class="w-full h-3 bg-blue-100 rounded-lg appearance-none cursor-pointer slider-thumb"
+              >
+              <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>€ {{ "{:,.0f}".format(param.min) }}</span>
+                <span>€ {{ "{:,.0f}".format(param.max) }}</span>
+              </div>
+            </div>
+
+            <!-- Fine-tune input -->
+            <div class="mt-2">
+              <input
+                type="number"
+                name="{{ param.key }}_number"
+                id="{{ param.key }}_number"
+                min="{{ param.min }}"
+                max="{{ param.max }}"
+                step="{{ param.step }}"
+                value="{{ param.current }}"
+                x-model="{{ param.key }}"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Of voer exact bedrag in..."
+              >
+            </div>
+          </div>
+          {% endfor %}
+
+          <div class="mt-6 flex items-center text-sm text-gray-500">
+            <svg class="animate-spin h-5 w-5 mr-2 text-blue-600" id="whatif-loading" style="display: none;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="htmx-indicator" id="whatif-loading-text">Berekenen...</span>
+          </div>
+
+          <div class="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p class="text-sm text-blue-800">
+              <strong>💡 Tip:</strong> Sleep de schuifbalken of voer een exact bedrag in. De resultaten worden automatisch bijgewerkt.
+            </p>
+          </div>
+        </form>
+      </div>
+
+      <!-- Right panel: Results -->
+      <div class="bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-6">Effect op regelingen</h2>
+
+        <div id="whatif-results">
+          <!-- Initial state or results loaded here -->
+          <div class="text-center py-12 text-gray-500">
+            <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <p class="text-sm">Pas de gegevens aan om de impact te zien</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Back link -->
+    <div class="mt-8">
+      <a href="/?bsn={{ bsn }}" class="text-blue-600 hover:text-blue-800 flex items-center">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Terug naar dashboard
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+function directManipulation() {
+  return {
+    {% for param in adjustable_params %}
+    {{ param.key }}: {{ param.current }},
+    {% endfor %}
+
+    formatCurrency(value) {
+      return new Intl.NumberFormat('nl-NL', {
+        style: 'currency',
+        currency: 'EUR',
+        maximumFractionDigits: 0
+      }).format(value);
+    }
+  }
+}
+
+// Trigger initial calculation
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(() => {
+    htmx.trigger('#whatif-form', 'input');
+  }, 100);
+});
+</script>
+
+<style>
+/* Custom slider styling */
+.slider-thumb::-webkit-slider-thumb {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  background: #2563eb;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.1s;
+}
+
+.slider-thumb::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.slider-thumb::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: #2563eb;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.1s;
+}
+
+.slider-thumb::-moz-range-thumb:hover {
+  transform: scale(1.1);
+}
+</style>
+{% endblock %}

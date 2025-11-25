@@ -1,0 +1,102 @@
+<!-- Template Scenario Form -->
+<div class="bg-white rounded-lg shadow-lg p-6">
+  <div class="mb-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-2">Vul je nieuwe situatie in</h2>
+    <p class="text-gray-600">Pas alleen de gegevens aan die veranderen in jouw scenario</p>
+  </div>
+
+  <form
+    hx-post="/whatif/templates/calculate?bsn={{ bsn }}"
+    hx-target="#template-results"
+    hx-indicator="#template-loading"
+  >
+    <input type="hidden" name="bsn" value="{{ bsn }}">
+    <input type="hidden" name="scenario_id" value="{{ scenario_id }}">
+
+    <div class="space-y-6">
+      {% for field in fields %}
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-2">
+          {{ field.label }}
+        </label>
+
+        {% if field.type == 'select' %}
+        <select
+          name="{{ field.key }}"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          {% for option in field.options %}
+          <option value="{{ option }}" {% if option == field.current %}selected{% endif %}>
+            {{ option|title }}
+          </option>
+          {% endfor %}
+        </select>
+
+        {% elif field.type == 'number' %}
+        <div class="relative">
+          <input
+            type="number"
+            name="{{ field.key }}"
+            value="{{ field.current }}"
+            placeholder="{{ field.placeholder }}"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+          {% if field.current != 0 %}
+          <div class="mt-1 text-xs text-gray-500">
+            Huidige waarde: € {{ "{:,.0f}".format(field.current) }}
+          </div>
+          {% endif %}
+        </div>
+
+        {% elif field.type == 'text' %}
+        <input
+          type="text"
+          name="{{ field.key }}"
+          value="{{ field.current }}"
+          placeholder="{{ field.placeholder }}"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+        {% if field.current %}
+        <div class="mt-1 text-xs text-gray-500">
+          Huidige waarde: {{ field.current }}
+        </div>
+        {% endif %}
+
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="mt-6">
+      <button
+        type="submit"
+        class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 transition-colors"
+      >
+        <span class="htmx-indicator" id="template-loading" style="display: none;">
+          <svg class="animate-spin inline h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Berekenen...
+        </span>
+        <span class="htmx-indicator-not">
+          Bereken effect
+        </span>
+      </button>
+    </div>
+  </form>
+
+  <!-- Results container -->
+  <div id="template-results" class="mt-8">
+    <!-- Results will load here -->
+  </div>
+</div>
+
+<style>
+.htmx-request #template-loading {
+  display: inline !important;
+}
+.htmx-request .htmx-indicator-not {
+  display: none;
+}
+</style>

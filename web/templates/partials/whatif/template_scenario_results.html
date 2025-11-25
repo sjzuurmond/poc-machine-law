@@ -1,0 +1,174 @@
+<!-- Template Scenario Results -->
+<div class="border-t-2 border-gray-200 pt-6">
+  <h3 class="text-xl font-bold text-gray-900 mb-4">Resultaten van jouw scenario</h3>
+
+  <!-- Parameter changes summary -->
+  <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+    <h4 class="font-semibold text-gray-900 mb-3">Wat verandert er:</h4>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {% for key, value in modified_person.items() %}
+        {% if key in ['inkomen_werk', 'huur_per_maand', 'inkomen_onderneming', 'vermogen', 'burgerlijke_staat', 'postcode', 'woonplaats', 'partner_inkomen', 'aow', 'pensioen'] %}
+          {% if original_person.get(key) != value %}
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600">{{ key|replace('_', ' ')|title }}:</span>
+            <div class="flex items-center space-x-2">
+              <span class="text-gray-500 line-through">
+                {% if value is number %}
+                  € {{ "{:,.0f}".format(original_person.get(key, 0)) }}
+                {% else %}
+                  {{ original_person.get(key, '-') }}
+                {% endif %}
+              </span>
+              <span>→</span>
+              <span class="font-semibold text-gray-900">
+                {% if value is number %}
+                  € {{ "{:,.0f}".format(value) }}
+                {% else %}
+                  {{ value }}
+                {% endif %}
+              </span>
+            </div>
+          </div>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Law results -->
+  <div class="space-y-4">
+    {% for result in results %}
+    <div class="border border-gray-200 rounded-lg p-4">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <h4 class="font-semibold text-gray-900">{{ result.display_name }}</h4>
+          <p class="text-xs text-gray-500">{{ result.service }}</p>
+        </div>
+
+        {% if result.new and hasattr(result.new, 'requirements_met') and result.new.requirements_met %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          Recht op
+        </span>
+        {% elif result.new and hasattr(result.new, 'missing_required') and result.new.missing_required %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          Gegevens ontbreken
+        </span>
+        {% else %}
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          Geen recht
+        </span>
+        {% endif %}
+      </div>
+
+      {% if result.new_value is not none and result.original_value is not none %}
+      <div class="space-y-2">
+        <div class="flex items-baseline justify-between">
+          <span class="text-sm text-gray-600">Nieuw:</span>
+          <span class="text-2xl font-bold text-gray-900">
+            {{ result.new_value|format_currency }}/mnd
+          </span>
+        </div>
+
+        <div class="flex items-baseline justify-between">
+          <span class="text-sm text-gray-600">Was:</span>
+          <span class="text-lg text-gray-500">
+            {{ result.original_value|format_currency }}/mnd
+          </span>
+        </div>
+
+        {% if result.change is not none and result.change != 0 %}
+        <div class="flex items-center justify-end mt-2">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-base font-bold {% if result.change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+            {% if result.change > 0 %}↑{% else %}↓{% endif %} {{ result.change|format_currency }}/mnd
+          </span>
+        </div>
+        {% elif result.change == 0 %}
+        <div class="text-sm text-gray-500 text-right">
+          → Geen verandering
+        </div>
+        {% endif %}
+      </div>
+      {% elif result.new and hasattr(result.new, 'output') %}
+      <div class="text-sm text-gray-600">
+        {% for key, value in result.new.output.items() %}
+        <div class="flex justify-between py-1">
+          <span class="font-medium">{{ key }}:</span>
+          <span>
+            {% if value is number %}
+              {{ value|format_currency }}
+            {% else %}
+              {{ value }}
+            {% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Total summary -->
+  {% set total_new = namespace(value=0) %}
+  {% set total_old = namespace(value=0) %}
+
+  {% for result in results %}
+    {% if result.new_value is not none %}
+      {% set total_new.value = total_new.value + result.new_value %}
+    {% endif %}
+    {% if result.original_value is not none %}
+      {% set total_old.value = total_old.value + result.original_value %}
+    {% endif %}
+  {% endfor %}
+
+  {% set total_change = total_new.value - total_old.value %}
+
+  <div class="border-t-2 border-gray-300 pt-4 mt-6">
+    <div class="bg-blue-50 rounded-lg p-6">
+      <div class="flex items-baseline justify-between mb-3">
+        <h4 class="text-lg font-bold text-gray-900">Totaal toeslagen</h4>
+        <span class="text-3xl font-bold text-blue-600">
+          {{ total_new.value|format_currency }}/mnd
+        </span>
+      </div>
+
+      {% if total_change != 0 %}
+      <div class="flex items-center justify-between">
+        <span class="text-sm text-gray-600">Was {{ total_old.value|format_currency }}/mnd</span>
+        <span class="inline-flex items-center px-4 py-2 rounded-full text-lg font-bold {% if total_change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+          {% if total_change > 0 %}+{% else %}{% endif %}{{ total_change|format_currency }}/mnd
+        </span>
+      </div>
+
+      <div class="mt-4 pt-4 border-t border-blue-200">
+        <div class="text-sm text-gray-700">
+          {% if total_change > 0 %}
+          <p><strong>💰 Je krijgt {{ total_change|format_currency }} meer per maand</strong> in dit scenario.</p>
+          {% elif total_change < 0 %}
+          <p><strong>⚠️ Je krijgt {{ (total_change * -1)|format_currency }} minder per maand</strong> in dit scenario.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {% else %}
+      <p class="text-sm text-gray-600">→ Geen verandering in totaal</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="mt-6 flex gap-3">
+    <button
+      onclick="window.location.reload()"
+      class="flex-1 bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-300 transition-colors"
+    >
+      Probeer ander scenario
+    </button>
+    <a
+      href="/?bsn={{ request.session.bsn }}"
+      class="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 text-center transition-colors"
+    >
+      Terug naar dashboard
+    </a>
+  </div>
+</div>

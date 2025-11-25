@@ -344,6 +344,66 @@
         {% endif %}
     </div>
 </section>
+
+<!-- What-if Scenarios Section -->
+<section class="mb-8">
+    <div class="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg shadow-lg p-6 border border-purple-200">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-xl font-bold text-gray-900 mb-2">🔮 Wat-als scenarios</h3>
+                <p class="text-gray-600 text-sm">Ontdek hoe veranderingen in je situatie je regelingen beïnvloeden</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <!-- Direct Manipulation -->
+            <a href="/whatif/direct-manipulation?bsn={{ bsn }}"
+               class="block bg-white rounded-lg p-5 shadow hover:shadow-xl transition-all border-2 border-transparent hover:border-blue-500 group">
+                <div class="flex items-start space-x-3">
+                    <div class="text-3xl">🎚️</div>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-gray-900 mb-1 group-hover:text-blue-600">Direct aanpassen</h4>
+                        <p class="text-sm text-gray-600">Pas gegevens aan met schuifbalken en zie direct het effect</p>
+                        <div class="mt-2 text-xs text-blue-600 font-medium">→ Experimenteren →</div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Template Scenarios -->
+            <a href="/whatif/templates?bsn={{ bsn }}"
+               class="block bg-white rounded-lg p-5 shadow hover:shadow-xl transition-all border-2 border-transparent hover:border-purple-500 group">
+                <div class="flex items-start space-x-3">
+                    <div class="text-3xl">📋</div>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-gray-900 mb-1 group-hover:text-purple-600">Kies een situatie</h4>
+                        <p class="text-sm text-gray-600">Selecteer veelvoorkomende levensveranderingen</p>
+                        <div class="mt-2 text-xs text-purple-600 font-medium">→ Stap voor stap →</div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- Comparison Mode -->
+            <a href="/whatif/comparison?bsn={{ bsn }}"
+               class="block bg-white rounded-lg p-5 shadow hover:shadow-xl transition-all border-2 border-transparent hover:border-green-500 group">
+                <div class="flex items-start space-x-3">
+                    <div class="text-3xl">⚖️</div>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-gray-900 mb-1 group-hover:text-green-600">Vergelijk scenarios</h4>
+                        <p class="text-sm text-gray-600">Vergelijk meerdere mogelijke situaties naast elkaar</p>
+                        <div class="mt-2 text-xs text-green-600 font-medium">→ Overzicht →</div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <div class="mt-4 p-3 bg-white/50 rounded border border-purple-100">
+            <p class="text-xs text-gray-600">
+                <strong>💡 Tip:</strong> Deze wat-als scenarios helpen je om vooruit te plannen en te begrijpen hoe veranderingen je regelingen beïnvloeden.
+            </p>
+        </div>
+    </div>
+</section>
+
 <!-- Laws Grid -->
 <section class="mb-8">
     <h3 class="font-semibold text-lg mb-4">Berekende regelingen</h3>

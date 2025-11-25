@@ -1,0 +1,179 @@
+<!-- Direct Manipulation Results -->
+<div class="space-y-4">
+  {% for law, data in results.items() %}
+  {% set original = original_results.get(law) %}
+  {% set result = data.get('result') %}
+
+  <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <h3 class="font-semibold text-gray-900">
+          {% if law == 'zorgtoeslagwet' %}
+          Zorgtoeslag
+          {% elif law == 'wet_op_de_huurtoeslag' %}
+          Huurtoeslag
+          {% elif law == 'participatiewet' %}
+          Participatiewet
+          {% else %}
+          {{ law }}
+          {% endif %}
+        </h3>
+        <p class="text-xs text-gray-500">{{ data.service }}</p>
+      </div>
+
+      {% if result and hasattr(result, 'requirements_met') and result.requirements_met %}
+      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+        Recht op
+      </span>
+      {% elif result and hasattr(result, 'missing_required') and result.missing_required %}
+      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+        Gegevens ontbreken
+      </span>
+      {% else %}
+      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+        Geen recht
+      </span>
+      {% endif %}
+    </div>
+
+    {% if result and hasattr(result, 'output') %}
+    <div class="space-y-2">
+      <!-- Extract main value -->
+      {% if law == 'zorgtoeslagwet' and 'totale_zorgtoeslag_per_maand' in result.output %}
+        {% set new_value = result.output.totale_zorgtoeslag_per_maand %}
+        {% set original_value = original.output.totale_zorgtoeslag_per_maand if original and hasattr(original, 'output') and 'totale_zorgtoeslag_per_maand' in original.output else 0 %}
+        {% set change = new_value - original_value %}
+
+        <div class="flex items-baseline justify-between">
+          <span class="text-2xl font-bold text-gray-900">
+            {{ new_value|format_currency }}/mnd
+          </span>
+
+          {% if change != 0 %}
+          <div class="flex items-center space-x-2">
+            <span class="text-sm text-gray-500">was {{ original_value|format_currency }}/mnd</span>
+            <span class="inline-flex items-center px-2 py-1 rounded text-sm font-medium {% if change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+              {% if change > 0 %}↑{% else %}↓{% endif %} {{ change|format_currency }}
+            </span>
+          </div>
+          {% else %}
+          <span class="text-sm text-gray-500">→ geen verandering</span>
+          {% endif %}
+        </div>
+
+      {% elif law == 'wet_op_de_huurtoeslag' and 'totale_huurtoeslag_per_maand' in result.output %}
+        {% set new_value = result.output.totale_huurtoeslag_per_maand %}
+        {% set original_value = original.output.totale_huurtoeslag_per_maand if original and hasattr(original, 'output') and 'totale_huurtoeslag_per_maand' in original.output else 0 %}
+        {% set change = new_value - original_value %}
+
+        <div class="flex items-baseline justify-between">
+          <span class="text-2xl font-bold text-gray-900">
+            {{ new_value|format_currency }}/mnd
+          </span>
+
+          {% if change != 0 %}
+          <div class="flex items-center space-x-2">
+            <span class="text-sm text-gray-500">was {{ original_value|format_currency }}/mnd</span>
+            <span class="inline-flex items-center px-2 py-1 rounded text-sm font-medium {% if change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+              {% if change > 0 %}↑{% else %}↓{% endif %} {{ change|format_currency }}
+            </span>
+          </div>
+          {% else %}
+          <span class="text-sm text-gray-500">→ geen verandering</span>
+          {% endif %}
+        </div>
+
+      {% elif law == 'participatiewet' and 'bijstand_per_maand' in result.output %}
+        {% set new_value = result.output.bijstand_per_maand %}
+        {% set original_value = original.output.bijstand_per_maand if original and hasattr(original, 'output') and 'bijstand_per_maand' in original.output else 0 %}
+        {% set change = new_value - original_value %}
+
+        <div class="flex items-baseline justify-between">
+          <span class="text-2xl font-bold text-gray-900">
+            {{ new_value|format_currency }}/mnd
+          </span>
+
+          {% if change != 0 %}
+          <div class="flex items-center space-x-2">
+            <span class="text-sm text-gray-500">was {{ original_value|format_currency }}/mnd</span>
+            <span class="inline-flex items-center px-2 py-1 rounded text-sm font-medium {% if change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+              {% if change > 0 %}↑{% else %}↓{% endif %} {{ change|format_currency }}
+            </span>
+          </div>
+          {% else %}
+          <span class="text-sm text-gray-500">→ geen verandering</span>
+          {% endif %}
+        </div>
+
+      {% else %}
+        <!-- Generic output display -->
+        <div class="text-sm text-gray-600">
+          {% for key, value in result.output.items() %}
+          <div class="flex justify-between py-1">
+            <span class="font-medium">{{ key }}:</span>
+            <span>
+              {% if value is number %}
+                {{ value|format_currency }}
+              {% else %}
+                {{ value }}
+              {% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+    {% elif 'error' in data %}
+    <div class="text-sm text-red-600">
+      <p>Fout bij berekening: {{ data.error }}</p>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <!-- Summary -->
+  {% set total_new = namespace(value=0) %}
+  {% set total_old = namespace(value=0) %}
+
+  {% for law, data in results.items() %}
+    {% set result = data.get('result') %}
+    {% set original = original_results.get(law) %}
+
+    {% if result and hasattr(result, 'output') %}
+      {% if law == 'zorgtoeslagwet' and 'totale_zorgtoeslag_per_maand' in result.output %}
+        {% set total_new.value = total_new.value + result.output.totale_zorgtoeslag_per_maand %}
+        {% set total_old.value = total_old.value + (original.output.totale_zorgtoeslag_per_maand if original and hasattr(original, 'output') and 'totale_zorgtoeslag_per_maand' in original.output else 0) %}
+      {% elif law == 'wet_op_de_huurtoeslag' and 'totale_huurtoeslag_per_maand' in result.output %}
+        {% set total_new.value = total_new.value + result.output.totale_huurtoeslag_per_maand %}
+        {% set total_old.value = total_old.value + (original.output.totale_huurtoeslag_per_maand if original and hasattr(original, 'output') and 'totale_huurtoeslag_per_maand' in original.output else 0) %}
+      {% elif law == 'participatiewet' and 'bijstand_per_maand' in result.output %}
+        {% set total_new.value = total_new.value + result.output.bijstand_per_maand %}
+        {% set total_old.value = total_old.value + (original.output.bijstand_per_maand if original and hasattr(original, 'output') and 'bijstand_per_maand' in original.output else 0) %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+  {% set total_change = total_new.value - total_old.value %}
+
+  <div class="border-t-2 border-gray-300 pt-4 mt-4">
+    <div class="bg-blue-50 rounded-lg p-4">
+      <div class="flex items-baseline justify-between mb-2">
+        <h3 class="text-lg font-bold text-gray-900">Totaal toeslagen</h3>
+        <span class="text-3xl font-bold text-blue-600">
+          {{ total_new.value|format_currency }}/mnd
+        </span>
+      </div>
+
+      {% if total_change != 0 %}
+      <div class="flex items-center justify-between text-sm">
+        <span class="text-gray-600">Was {{ total_old.value|format_currency }}/mnd</span>
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-base font-bold {% if total_change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+          {% if total_change > 0 %}↑{% else %}↓{% endif %} {{ total_change|format_currency }}
+        </span>
+      </div>
+      {% else %}
+      <p class="text-sm text-gray-600">→ Geen verandering in totaal</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
