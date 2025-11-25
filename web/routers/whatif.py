@@ -519,44 +519,51 @@ async def template_scenarios_panel(
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
-        # Define scenario templates
-        # Fields are now dynamically determined based on relevant laws for the user
+        # Define scenario templates with focus fields
+        # Focus fields define what typically changes in this scenario
+        # Additional fields may be added based on which laws are relevant for the user
         scenario_templates = [
             {
                 "id": "income_increase",
                 "name": "Mijn inkomen verandert",
                 "description": "Ik ga meer uren werken of krijg een loonsverhoging. Vul je nieuwe inkomen in en zie het effect op je toeslagen.",
                 "icon": "💼",
+                "focus_fields": ["inkomen_werk", "inkomen_onderneming"],
             },
             {
                 "id": "moving",
                 "name": "Ik ga verhuizen",
                 "description": "Ik verhuis naar een andere woning. Vul je nieuwe adres en huurprijs in en zie wat dat betekent voor je situatie.",
                 "icon": "🏠",
+                "focus_fields": ["huur_per_maand", "postcode", "woonplaats"],
             },
             {
                 "id": "relationship_change",
                 "name": "Ik ga samenwonen/scheiden",
                 "description": "Mijn burgerlijke staat verandert. Pas je situatie aan en zie hoe dit je toeslagen beïnvloedt.",
                 "icon": "👥",
+                "focus_fields": ["burgerlijke_staat", "partner_inkomen"],
             },
             {
                 "id": "self_employed",
                 "name": "Ik word zelfstandig ondernemer",
                 "description": "Ik start als ZZP'er of ondernemer. Vul je verwachte inkomen in en zie hoe dit uitpakt.",
                 "icon": "🚀",
+                "focus_fields": ["inkomen_onderneming", "inkomen_werk"],
             },
             {
                 "id": "retirement",
                 "name": "Ik ga met pensioen",
                 "description": "Ik stop met werken en krijg AOW/pensioen. Vul je nieuwe situatie in en bereken je inkomsten.",
                 "icon": "🌴",
+                "focus_fields": ["inkomen_werk", "aow", "pensioen"],
             },
             {
                 "id": "custom",
                 "name": "Algemeen scenario",
                 "description": "Pas alle relevante gegevens aan en zie het totaaleffect op je situatie.",
                 "icon": "⚙️",
+                "focus_fields": [],  # Empty means show all relevant fields
             },
         ]
 
@@ -593,27 +600,85 @@ async def template_scenario_form(
         # Extract current values from nested profile structure
         current_values = extract_whatif_parameters(person)
 
-        # Get all discoverable laws for this person to determine relevant fields
+        # Define scenario configurations with focus fields
+        scenario_configs = {
+            "income_increase": {
+                "focus_fields": ["inkomen_werk", "inkomen_onderneming"],
+            },
+            "moving": {
+                "focus_fields": ["huur_per_maand", "postcode", "woonplaats"],
+            },
+            "relationship_change": {
+                "focus_fields": ["burgerlijke_staat", "partner_inkomen"],
+            },
+            "self_employed": {
+                "focus_fields": ["inkomen_onderneming", "inkomen_werk"],
+            },
+            "retirement": {
+                "focus_fields": ["inkomen_werk", "aow", "pensioen"],
+            },
+            "custom": {
+                "focus_fields": [],  # Empty means show all relevant fields
+            },
+        }
+
+        # Get scenario configuration
+        scenario_config = scenario_configs.get(scenario_id, {"focus_fields": []})
+        focus_fields = scenario_config["focus_fields"]
+
+        # Get all discoverable laws for this person
         discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
         laws_to_check = [(law_info["law"], law_info["service"]) for law_info in discoverable_laws]
 
-        # Get required fields based on relevant laws
-        fields_config = get_law_required_fields(laws_to_check, machine_service)
+        # Get all required fields based on relevant laws
+        all_fields_config = get_law_required_fields(laws_to_check, machine_service)
+
+        # Determine which fields to show:
+        # - If focus_fields is empty (custom scenario), show all fields
+        # - Otherwise, show focus_fields + any additional fields required by laws
+        if focus_fields:
+            # Start with focus fields
+            fields_to_show = set(focus_fields)
+
+            # Add any law-required fields that overlap with focus areas
+            # This ensures we don't miss critical fields for laws affected by the scenario
+            for field_key in all_fields_config.keys():
+                # If this field is needed by any relevant law AND is in our focus area, include it
+                if field_key in focus_fields or any(keyword in field_key for keyword in
+                    ['inkomen', 'vermogen', 'huur', 'postcode', 'woonplaats', 'burgerlijk', 'partner', 'aow', 'pensioen']):
+                    # Only add if it's contextually relevant to the scenario
+                    if scenario_id == "moving" and field_key in ["huur_per_maand", "postcode", "woonplaats"]:
+                        fields_to_show.add(field_key)
+                    elif scenario_id == "income_increase" and "inkomen" in field_key:
+                        fields_to_show.add(field_key)
+                    elif scenario_id == "relationship_change" and ("burgerlijk" in field_key or "partner" in field_key):
+                        fields_to_show.add(field_key)
+                    elif scenario_id == "self_employed" and "inkomen" in field_key:
+                        fields_to_show.add(field_key)
+                    elif scenario_id == "retirement" and (field_key in ["inkomen_werk", "aow", "pensioen"]):
+                        fields_to_show.add(field_key)
+                    elif field_key in focus_fields:
+                        fields_to_show.add(field_key)
+        else:
+            # Custom scenario: show all relevant fields
+            fields_to_show = set(all_fields_config.keys())
 
         # Build field list with current values
         fields = []
-        for field_key, field_config in fields_config.items():
-            field = {
-                "key": field_key,
-                "label": field_config["label"],
-                "type": field_config["type"],
-                "current": current_values.get(field_key, 0 if field_config["type"] == "number" else ""),
-                "placeholder": field_config.get("placeholder", ""),
-            }
-            if "options" in field_config:
-                field["options"] = field_config["options"]
+        for field_key in fields_to_show:
+            if field_key in all_fields_config:
+                field_config = all_fields_config[field_key]
+                field = {
+                    "key": field_key,
+                    "label": field_config["label"],
+                    "type": field_config["type"],
+                    "current": current_values.get(field_key, 0 if field_config["type"] == "number" else ""),
+                    "placeholder": field_config.get("placeholder", ""),
+                }
+                if "options" in field_config:
+                    field["options"] = field_config["options"]
 
-            fields.append(field)
+                fields.append(field)
 
         # Sort fields for consistent display (income first, then other fields)
         field_order = ["inkomen_werk", "inkomen_onderneming", "vermogen", "huur_per_maand",
