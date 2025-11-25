@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.responses import HTMLResponse
 
-from web.dependencies import get_case_manager, get_engine, get_templates
+from web.dependencies import get_case_manager, get_machine_service, templates
 from web.engines.case_manager_interface import CaseManagerInterface
 from web.engines.engine_interface import EngineInterface
 
@@ -18,8 +18,7 @@ logger = logging.getLogger(__name__)
 async def direct_manipulation_panel(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
     case_manager: CaseManagerInterface = Depends(get_case_manager),
 ) -> HTMLResponse:
     """
@@ -29,7 +28,7 @@ async def direct_manipulation_panel(
     """
     try:
         # Get current person data
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -95,8 +94,7 @@ async def direct_manipulation_panel(
 async def calculate_direct_manipulation(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """
     Calculate impact of adjusted parameters in real-time.
@@ -108,7 +106,7 @@ async def calculate_direct_manipulation(
         form_data = await request.form()
 
         # Build modified person data
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         modified_person = person.copy()
 
         # Update with form values
@@ -129,7 +127,7 @@ async def calculate_direct_manipulation(
         results = {}
         for law, service in laws_to_check:
             try:
-                result = await engine.execute_law(law, modified_person)
+                result = await machine_service.execute_law(law, modified_person)
                 results[law] = {
                     "result": result,
                     "service": service,
@@ -142,7 +140,7 @@ async def calculate_direct_manipulation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await engine.execute_law(law, person)
+                result = await machine_service.execute_law(law, person)
                 original_results[law] = result
             except Exception as e:
                 logger.warning(f"Failed to calculate original {law}: {e}")
@@ -165,8 +163,7 @@ async def calculate_direct_manipulation(
 async def template_scenarios_panel(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """
     Render the template-based scenarios panel.
@@ -175,7 +172,7 @@ async def template_scenarios_panel(
     """
     try:
         # Get current person data
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -244,14 +241,13 @@ async def template_scenario_form(
     request: Request,
     scenario_id: str,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """
     Render the form for a specific scenario template.
     """
     try:
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -367,8 +363,7 @@ async def template_scenario_form(
 async def calculate_template_scenario(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """
     Calculate impact of template scenario.
@@ -377,7 +372,7 @@ async def calculate_template_scenario(
         form_data = await request.form()
 
         # Build modified person data
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         modified_person = person.copy()
 
         # Update with form values
@@ -400,8 +395,8 @@ async def calculate_template_scenario(
         results = []
         for law, service, display_name in laws_to_check:
             try:
-                original_result = await engine.execute_law(law, person)
-                new_result = await engine.execute_law(law, modified_person)
+                original_result = await machine_service.execute_law(law, person)
+                new_result = await machine_service.execute_law(law, modified_person)
 
                 # Extract main output value
                 original_value = _extract_main_value(original_result)
@@ -440,15 +435,14 @@ async def calculate_template_scenario(
 async def comparison_panel(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """
     Render the comparison mode panel for side-by-side scenario comparison.
     """
     try:
         # Get current person data
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -462,7 +456,7 @@ async def comparison_panel(
         current_results = []
         for law, service, display_name in laws_to_check:
             try:
-                result = await engine.execute_law(law, person)
+                result = await machine_service.execute_law(law, person)
                 value = _extract_main_value(result)
                 current_results.append(
                     {
@@ -493,8 +487,7 @@ async def comparison_panel(
 async def add_comparison_scenario(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """
     Add a new scenario to the comparison view.
@@ -504,7 +497,7 @@ async def add_comparison_scenario(
         scenario_name = form_data.get("scenario_name", "Nieuw scenario")
 
         # Build modified person data
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         modified_person = person.copy()
 
         # Update with form values
@@ -525,7 +518,7 @@ async def add_comparison_scenario(
         scenario_results = []
         for law, service, display_name in laws_to_check:
             try:
-                result = await engine.execute_law(law, modified_person)
+                result = await machine_service.execute_law(law, modified_person)
                 value = _extract_main_value(result)
                 scenario_results.append(
                     {
@@ -565,8 +558,7 @@ async def add_comparison_scenario(
 async def compact_variation(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """
     Render the compact side-by-side variation.
@@ -574,7 +566,7 @@ async def compact_variation(
     Exact implementation of the ASCII art specification.
     """
     try:
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -595,8 +587,7 @@ async def compact_variation(
 async def fullscreen_variation(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """
     Render the full-screen interactive variation.
@@ -604,7 +595,7 @@ async def fullscreen_variation(
     Rich visual experience with gradient cards and detailed feedback.
     """
     try:
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
@@ -625,13 +616,12 @@ async def fullscreen_variation(
 async def calculate_compact_variation(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """Calculate results for compact variation."""
     try:
         form_data = await request.form()
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         modified_person = person.copy()
 
         for key, value in form_data.items():
@@ -651,9 +641,9 @@ async def calculate_compact_variation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await engine.execute_law(law, modified_person)
+                result = await machine_service.execute_law(law, modified_person)
                 results[law] = {"result": result, "service": service}
-                original_result = await engine.execute_law(law, person)
+                original_result = await machine_service.execute_law(law, person)
                 original_results[law] = original_result
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
@@ -676,13 +666,12 @@ async def calculate_compact_variation(
 async def calculate_widget_variation(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """Calculate results for widget variation."""
     try:
         form_data = await request.form()
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         modified_person = person.copy()
 
         for key, value in form_data.items():
@@ -702,9 +691,9 @@ async def calculate_widget_variation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await engine.execute_law(law, modified_person)
+                result = await machine_service.execute_law(law, modified_person)
                 results[law] = {"result": result, "service": service}
-                original_result = await engine.execute_law(law, person)
+                original_result = await machine_service.execute_law(law, person)
                 original_results[law] = original_result
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
@@ -727,13 +716,12 @@ async def calculate_widget_variation(
 async def calculate_fullscreen_variation(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """Calculate results for fullscreen variation."""
     try:
         form_data = await request.form()
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         modified_person = person.copy()
 
         for key, value in form_data.items():
@@ -753,9 +741,9 @@ async def calculate_fullscreen_variation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await engine.execute_law(law, modified_person)
+                result = await machine_service.execute_law(law, modified_person)
                 results[law] = {"result": result, "service": service}
-                original_result = await engine.execute_law(law, person)
+                original_result = await machine_service.execute_law(law, person)
                 original_results[law] = original_result
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
@@ -778,13 +766,12 @@ async def calculate_fullscreen_variation(
 async def calculate_modal_variation(
     request: Request,
     bsn: str,
-    templates=Depends(get_templates),
-    engine: EngineInterface = Depends(get_engine),
+    machine_service: EngineInterface = Depends(get_machine_service),
 ) -> HTMLResponse:
     """Calculate results for modal variation."""
     try:
         form_data = await request.form()
-        person = await engine.get_person(bsn)
+        person = await machine_service.get_person(bsn)
         modified_person = person.copy()
 
         for key, value in form_data.items():
@@ -804,9 +791,9 @@ async def calculate_modal_variation(
         original_results = {}
         for law, service in laws_to_check:
             try:
-                result = await engine.execute_law(law, modified_person)
+                result = await machine_service.execute_law(law, modified_person)
                 results[law] = {"result": result, "service": service}
-                original_result = await engine.execute_law(law, person)
+                original_result = await machine_service.execute_law(law, person)
                 original_results[law] = original_result
             except Exception as e:
                 logger.warning(f"Failed to calculate {law}: {e}")
