@@ -33,7 +33,7 @@ async def direct_manipulation_panel(
             raise HTTPException(status_code=404, detail="Person not found")
 
         # Get all cases for this person
-        cases = await case_manager.get_cases_by_bsn(bsn)
+        cases = case_manager.get_cases_by_bsn(bsn)
 
         # Define the main adjustable parameters with their ranges
         adjustable_params = [
