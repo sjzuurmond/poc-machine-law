@@ -45,11 +45,11 @@
           <p class="text-xs text-gray-500">{{ result.service }}</p>
         </div>
 
-        {% if result.new and hasattr(result.new, 'requirements_met') and result.new.requirements_met %}
+        {% if result.new and result.new.requirements_met is defined and result.new.requirements_met %}
         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
           Recht op
         </span>
-        {% elif result.new and hasattr(result.new, 'missing_required') and result.new.missing_required %}
+        {% elif result.new and result.new.missing_required is defined and result.new.missing_required %}
         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
           Gegevens ontbreken
         </span>
@@ -88,7 +88,7 @@
         </div>
         {% endif %}
       </div>
-      {% elif result.new and hasattr(result.new, 'output') %}
+      {% elif result.new and result.new.output is defined %}
       <div class="text-sm text-gray-600">
         {% for key, value in result.new.output.items() %}
         <div class="flex justify-between py-1">

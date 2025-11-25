@@ -441,3 +441,90 @@ async def application_panel(
                 "current_engine_id": get_engine_id(),
             },
         )
+
+
+@router.post("/scenario")
+async def calculate_scenario(
+    request: Request,
+    bsn: str = Form(...),
+    service: str = Form(...),
+    law: str = Form(...),
+    machine_service: EngineInterface = Depends(get_machine_service),
+) -> JSONResponse:
+    """
+    Calculate a hypothetical scenario with modified parameters.
+
+    This endpoint accepts modified parameters via form data and returns
+    both the original and modified law evaluation results.
+
+    Form parameters beyond bsn, service, law are treated as overwrite_input.
+    """
+    try:
+        # Get form data
+        form_data = await request.form()
+
+        # Extract overwrite parameters (everything except bsn, service, law)
+        overwrite_input = {}
+        for key, value in form_data.items():
+            if key not in ["bsn", "service", "law"]:
+                # Try to convert to int/float if numeric
+                try:
+                    if value and value.strip():
+                        # Try int first, then float
+                        try:
+                            overwrite_input[key] = int(value)
+                        except ValueError:
+                            try:
+                                overwrite_input[key] = float(value)
+                            except ValueError:
+                                # Keep as string
+                                overwrite_input[key] = value
+                except (AttributeError, TypeError):
+                    overwrite_input[key] = value
+
+        # Calculate original result (without modifications)
+        original_result = machine_service.evaluate(
+            service=service,
+            law=law,
+            parameters={"BSN": bsn},
+            reference_date=TODAY,
+        )
+
+        # Calculate modified result (with overwrite_input)
+        modified_result = machine_service.evaluate(
+            service=service,
+            law=law,
+            parameters={"BSN": bsn},
+            reference_date=TODAY,
+            overwrite_input=overwrite_input if overwrite_input else None,
+        )
+
+        # Convert RuleResult to dict for JSON response
+        def result_to_dict(result: RuleResult) -> dict:
+            return {
+                "output": result.output,
+                "requirements_met": result.requirements_met,
+                "missing_required": result.missing_required,
+                "input": result.input,
+            }
+
+        return JSONResponse({
+            "success": True,
+            "law": law,
+            "service": service,
+            "original": result_to_dict(original_result),
+            "modified": result_to_dict(modified_result),
+            "overwrite_input": overwrite_input,
+        })
+
+    except Exception as e:
+        logger.error(f"Error calculating scenario: {e}", exc_info=True)
+        return JSONResponse(
+            {
+                "success": False,
+                "error": str(e),
+                "law": law if 'law' in locals() else None,
+                "service": service if 'service' in locals() else None,
+            },
+            status_code=500,
+        )

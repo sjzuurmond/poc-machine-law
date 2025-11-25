@@ -21,11 +21,11 @@
         <p class="text-xs text-gray-500">{{ data.service }}</p>
       </div>
 
-      {% if result and hasattr(result, 'requirements_met') and result.requirements_met %}
+      {% if result and result.requirements_met is defined and result.requirements_met %}
       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
         Recht op
       </span>
-      {% elif result and hasattr(result, 'missing_required') and result.missing_required %}
+      {% elif result and result.missing_required is defined and result.missing_required %}
       <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
         Gegevens ontbreken
       </span>
@@ -36,12 +36,12 @@
       {% endif %}
     </div>
 
-    {% if result and hasattr(result, 'output') %}
+    {% if result and result.output is defined %}
     <div class="space-y-2">
       <!-- Extract main value -->
       {% if law == 'zorgtoeslagwet' and 'totale_zorgtoeslag_per_maand' in result.output %}
         {% set new_value = result.output.totale_zorgtoeslag_per_maand %}
-        {% set original_value = original.output.totale_zorgtoeslag_per_maand if original and hasattr(original, 'output') and 'totale_zorgtoeslag_per_maand' in original.output else 0 %}
+        {% set original_value = original.output.totale_zorgtoeslag_per_maand if original and original.output is defined and 'totale_zorgtoeslag_per_maand' in original.output else 0 %}
         {% set change = new_value - original_value %}
 
         <div class="flex items-baseline justify-between">
@@ -63,7 +63,7 @@
 
       {% elif law == 'wet_op_de_huurtoeslag' and 'totale_huurtoeslag_per_maand' in result.output %}
         {% set new_value = result.output.totale_huurtoeslag_per_maand %}
-        {% set original_value = original.output.totale_huurtoeslag_per_maand if original and hasattr(original, 'output') and 'totale_huurtoeslag_per_maand' in original.output else 0 %}
+        {% set original_value = original.output.totale_huurtoeslag_per_maand if original and original.output is defined and 'totale_huurtoeslag_per_maand' in original.output else 0 %}
         {% set change = new_value - original_value %}
 
         <div class="flex items-baseline justify-between">
@@ -85,7 +85,7 @@
 
       {% elif law == 'participatiewet' and 'bijstand_per_maand' in result.output %}
         {% set new_value = result.output.bijstand_per_maand %}
-        {% set original_value = original.output.bijstand_per_maand if original and hasattr(original, 'output') and 'bijstand_per_maand' in original.output else 0 %}
+        {% set original_value = original.output.bijstand_per_maand if original and original.output is defined and 'bijstand_per_maand' in original.output else 0 %}
         {% set change = new_value - original_value %}
 
         <div class="flex items-baseline justify-between">
@@ -139,16 +139,16 @@
     {% set result = data.get('result') %}
     {% set original = original_results.get(law) %}
 
-    {% if result and hasattr(result, 'output') %}
+    {% if result and result.output is defined %}
       {% if law == 'zorgtoeslagwet' and 'totale_zorgtoeslag_per_maand' in result.output %}
         {% set total_new.value = total_new.value + result.output.totale_zorgtoeslag_per_maand %}
-        {% set total_old.value = total_old.value + (original.output.totale_zorgtoeslag_per_maand if original and hasattr(original, 'output') and 'totale_zorgtoeslag_per_maand' in original.output else 0) %}
+        {% set total_old.value = total_old.value + (original.output.totale_zorgtoeslag_per_maand if original and original.output is defined and 'totale_zorgtoeslag_per_maand' in original.output else 0) %}
       {% elif law == 'wet_op_de_huurtoeslag' and 'totale_huurtoeslag_per_maand' in result.output %}
         {% set total_new.value = total_new.value + result.output.totale_huurtoeslag_per_maand %}
-        {% set total_old.value = total_old.value + (original.output.totale_huurtoeslag_per_maand if original and hasattr(original, 'output') and 'totale_huurtoeslag_per_maand' in original.output else 0) %}
+        {% set total_old.value = total_old.value + (original.output.totale_huurtoeslag_per_maand if original and original.output is defined and 'totale_huurtoeslag_per_maand' in original.output else 0) %}
       {% elif law == 'participatiewet' and 'bijstand_per_maand' in result.output %}
         {% set total_new.value = total_new.value + result.output.bijstand_per_maand %}
-        {% set total_old.value = total_old.value + (original.output.bijstand_per_maand if original and hasattr(original, 'output') and 'bijstand_per_maand' in original.output else 0) %}
+        {% set total_old.value = total_old.value + (original.output.bijstand_per_maand if original and original.output is defined and 'bijstand_per_maand' in original.output else 0) %}
       {% endif %}
     {% endif %}
   {% endfor %}

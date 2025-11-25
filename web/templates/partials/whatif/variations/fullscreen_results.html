@@ -27,9 +27,9 @@
     {% set field = 'bijstand_per_maand' %}
   {% endif %}
 
-  {% if result and hasattr(result, 'output') and field and field in result.output %}
+  {% if result and result.output is defined and field and field in result.output %}
     {% set new_value = result.output[field] %}
-    {% set original_value = original.output[field] if original and hasattr(original, 'output') and field in original.output else new_value %}
+    {% set original_value = original.output[field] if original and original.output is defined and field in original.output else new_value %}
     {% set change = new_value - original_value %}
     {% set change_pct = ((change / original_value * 100) if original_value != 0 else 0) %}
 
@@ -101,9 +101,9 @@
   {% elif law == 'participatiewet' %}
     {% set field = 'bijstand_per_maand' %}
   {% endif %}
-  {% if result and hasattr(result, 'output') and field and field in result.output %}
+  {% if result and result.output is defined and field and field in result.output %}
     {% set total_new.value = total_new.value + result.output[field] %}
-    {% set total_old.value = total_old.value + (original.output[field] if original and hasattr(original, 'output') and field in original.output else result.output[field]) %}
+    {% set total_old.value = total_old.value + (original.output[field] if original and original.output is defined and field in original.output else result.output[field]) %}
   {% endif %}
 {% endfor %}
 {% set total_change = total_new.value - total_old.value %}
