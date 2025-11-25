@@ -83,6 +83,7 @@ async def direct_manipulation_panel(
                 bsn=bsn,
                 adjustable_params=adjustable_params,
                 cases=cases,
+                all_profiles=machine_service.get_all_profiles(),
             )
         )
     except Exception as e:
@@ -240,6 +241,7 @@ async def template_scenarios_panel(
                 person=person,
                 bsn=bsn,
                 scenario_templates=scenario_templates,
+                all_profiles=machine_service.get_all_profiles(),
             )
         )
     except Exception as e:
@@ -503,6 +505,7 @@ async def comparison_panel(
                 person=person,
                 bsn=bsn,
                 current_results=current_results,
+                all_profiles=machine_service.get_all_profiles(),
             )
         )
     except Exception as e:
@@ -609,6 +612,7 @@ async def compact_variation(
                 request=request,
                 person=person,
                 bsn=bsn,
+                all_profiles=machine_service.get_all_profiles(),
             )
         )
     except Exception as e:
@@ -638,6 +642,7 @@ async def fullscreen_variation(
                 request=request,
                 person=person,
                 bsn=bsn,
+                all_profiles=machine_service.get_all_profiles(),
             )
         )
     except Exception as e:
