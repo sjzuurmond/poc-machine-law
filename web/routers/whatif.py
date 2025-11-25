@@ -14,6 +14,66 @@ router = APIRouter(prefix="/whatif", tags=["whatif"])
 logger = logging.getLogger(__name__)
 
 
+def extract_whatif_parameters(profile: dict[str, Any]) -> dict[str, Any]:
+    """
+    Extract commonly adjusted parameters from nested profile structure.
+
+    Maps nested profile data to flat dictionary of adjustable parameters.
+
+    Args:
+        profile: Nested profile dictionary from get_profile_data()
+
+    Returns:
+        Flattened dictionary with common adjustable parameters
+    """
+    params = {}
+
+    if not profile or "sources" not in profile:
+        return params
+
+    sources = profile["sources"]
+
+    # Extract income from work (loon_uit_dienstbetrekking)
+    if "BELASTINGDIENST" in sources and "box1" in sources["BELASTINGDIENST"]:
+        box1_data = sources["BELASTINGDIENST"]["box1"]
+        if box1_data:
+            params["inkomen_werk"] = box1_data[0].get("loon_uit_dienstbetrekking", 0)
+            params["inkomen_onderneming"] = box1_data[0].get("winst_uit_onderneming", 0)
+
+    # Extract assets/vermogen
+    if "BELASTINGDIENST" in sources:
+        if "belastingdienst_vermogen" in sources["BELASTINGDIENST"]:
+            vermogen_data = sources["BELASTINGDIENST"]["belastingdienst_vermogen"]
+            if vermogen_data:
+                params["vermogen"] = vermogen_data[0].get("vermogen", 0)
+        elif "box3" in sources["BELASTINGDIENST"]:
+            box3_data = sources["BELASTINGDIENST"]["box3"]
+            if box3_data:
+                params["vermogen"] = box3_data[0].get("spaargeld", 0)
+
+    # Extract rent (huur_per_maand) - check TOESLAGEN or other sources
+    if "TOESLAGEN" in sources:
+        if "huur_en_woongegevens" in sources["TOESLAGEN"]:
+            huur_data = sources["TOESLAGEN"]["huur_en_woongegevens"]
+            if huur_data:
+                # Extract from huurprijs (yearly) and convert to monthly
+                huurprijs = huur_data[0].get("huurprijs", 0)
+                params["huur_per_maand"] = huurprijs / 12 if huurprijs else 0
+        elif "huurtoeslag_woongegevens" in sources["TOESLAGEN"]:
+            woon_data = sources["TOESLAGEN"]["huurtoeslag_woongegevens"]
+            if woon_data:
+                huurprijs = woon_data[0].get("huurprijs", 0)
+                params["huur_per_maand"] = huurprijs / 12 if huurprijs else 0
+
+    # Extract partner income if applicable
+    if "BELASTINGDIENST" in sources and "partner_inkomen" in sources["BELASTINGDIENST"]:
+        partner_data = sources["BELASTINGDIENST"]["partner_inkomen"]
+        if partner_data:
+            params["partner_inkomen"] = partner_data[0].get("inkomen", 0)
+
+    return params
+
+
 def extract_missing_fields(result: RuleResult, machine_service: EngineInterface) -> list[str]:
     """
     Extract the list of missing required field names from the result's path tree.
@@ -58,6 +118,9 @@ async def direct_manipulation_panel(
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
+        # Extract flattened parameters for whatif adjustments
+        current_params = extract_whatif_parameters(person)
+
         # Get all cases for this person
         cases = case_manager.get_cases_by_bsn(bsn)
 
@@ -66,7 +129,7 @@ async def direct_manipulation_panel(
             {
                 "key": "inkomen_werk",
                 "label": "Inkomen uit werk",
-                "current": person.get("inkomen_werk", 0),
+                "current": current_params.get("inkomen_werk", 0),
                 "min": 0,
                 "max": 80000,
                 "step": 1000,
@@ -75,7 +138,7 @@ async def direct_manipulation_panel(
             {
                 "key": "huur_per_maand",
                 "label": "Huur per maand",
-                "current": person.get("huur_per_maand", 0),
+                "current": current_params.get("huur_per_maand", 0),
                 "min": 0,
                 "max": 2000,
                 "step": 50,
@@ -84,7 +147,7 @@ async def direct_manipulation_panel(
             {
                 "key": "inkomen_onderneming",
                 "label": "Inkomen uit onderneming",
-                "current": person.get("inkomen_onderneming", 0),
+                "current": current_params.get("inkomen_onderneming", 0),
                 "min": 0,
                 "max": 100000,
                 "step": 1000,
@@ -93,7 +156,7 @@ async def direct_manipulation_panel(
             {
                 "key": "vermogen",
                 "label": "Vermogen",
-                "current": person.get("vermogen", 0),
+                "current": current_params.get("vermogen", 0),
                 "min": 0,
                 "max": 200000,
                 "step": 5000,
