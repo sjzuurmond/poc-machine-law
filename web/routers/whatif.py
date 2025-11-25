@@ -104,6 +104,108 @@ def extract_whatif_parameters(profile: dict[str, Any]) -> dict[str, Any]:
     return params
 
 
+def get_law_required_fields(laws: list[tuple[str, str]], machine_service: EngineInterface) -> dict[str, dict]:
+    """
+    Get the required input fields for a set of laws.
+
+    This function maps laws to their required input fields. Currently uses a pragmatic
+    mapping based on known law requirements. Can be extended to parse rule specifications
+    dynamically from the machine service.
+
+    Args:
+        laws: List of (law, service) tuples
+        machine_service: Engine interface (for future dynamic field extraction)
+
+    Returns:
+        Dictionary mapping field keys to field configurations:
+        {
+            'field_key': {
+                'label': 'Human readable label',
+                'type': 'number' | 'text' | 'select',
+                'placeholder': 'Example value',
+                'options': [...] (for select fields)
+            }
+        }
+    """
+    # Mapping of law names to their required input fields
+    # This is a pragmatic approach - can be extended to parse from rule specs
+    LAW_FIELD_REQUIREMENTS = {
+        "zorgtoeslagwet": ["inkomen_werk", "vermogen", "burgerlijke_staat"],
+        "wet_op_de_huurtoeslag": ["huur_per_maand", "inkomen_werk", "postcode", "woonplaats"],
+        "participatiewet": ["inkomen_werk", "vermogen", "burgerlijke_staat"],
+        "wet_inkomstenbelasting_2001": ["inkomen_werk", "inkomen_onderneming", "vermogen"],
+        "algemene_ouderdomswet": ["aow", "pensioen", "inkomen_werk"],
+    }
+
+    # Field configuration templates
+    FIELD_CONFIGS = {
+        "inkomen_werk": {
+            "label": "Inkomen uit werk (per jaar)",
+            "type": "number",
+            "placeholder": "Bijv. 35000",
+        },
+        "inkomen_onderneming": {
+            "label": "Inkomen uit onderneming (per jaar)",
+            "type": "number",
+            "placeholder": "Bijv. 40000",
+        },
+        "vermogen": {
+            "label": "Vermogen (spaargeld en bezittingen)",
+            "type": "number",
+            "placeholder": "Bijv. 50000",
+        },
+        "huur_per_maand": {
+            "label": "Huur per maand",
+            "type": "number",
+            "placeholder": "Bijv. 750",
+        },
+        "postcode": {
+            "label": "Postcode",
+            "type": "text",
+            "placeholder": "Bijv. 1012AB",
+        },
+        "woonplaats": {
+            "label": "Woonplaats",
+            "type": "text",
+            "placeholder": "Bijv. Amsterdam",
+        },
+        "burgerlijke_staat": {
+            "label": "Burgerlijke staat",
+            "type": "select",
+            "options": ["alleenstaand", "gehuwd", "samenwonend", "gescheiden"],
+        },
+        "partner_inkomen": {
+            "label": "Inkomen partner (per jaar)",
+            "type": "number",
+            "placeholder": "Bijv. 30000",
+        },
+        "aow": {
+            "label": "AOW (per jaar)",
+            "type": "number",
+            "placeholder": "Bijv. 14000",
+        },
+        "pensioen": {
+            "label": "Pensioen (per jaar)",
+            "type": "number",
+            "placeholder": "Bijv. 20000",
+        },
+    }
+
+    # Collect all required fields from the laws
+    required_fields = set()
+    for law, service in laws:
+        if law in LAW_FIELD_REQUIREMENTS:
+            required_fields.update(LAW_FIELD_REQUIREMENTS[law])
+
+    # Build field configuration dictionary
+    fields_config = {}
+    for field_key in required_fields:
+        if field_key in FIELD_CONFIGS:
+            fields_config[field_key] = FIELD_CONFIGS[field_key].copy()
+
+    return fields_config
+
+
 def extract_missing_fields(result: RuleResult, machine_service: EngineInterface) -> list[str]:
     """
     Extract the list of missing required field names from the result's path tree.
@@ -418,48 +520,43 @@ async def template_scenarios_panel(
             raise HTTPException(status_code=404, detail="Person not found")
 
         # Define scenario templates
+        # Fields are now dynamically determined based on relevant laws for the user
         scenario_templates = [
             {
                 "id": "income_increase",
                 "name": "Mijn inkomen verandert",
-                "description": "Ik ga meer uren werken of krijg een loonsverhoging",
+                "description": "Ik ga meer uren werken of krijg een loonsverhoging. Vul je nieuwe inkomen in en zie het effect op je toeslagen.",
                 "icon": "💼",
-                "fields": ["inkomen_werk"],
             },
             {
                 "id": "moving",
                 "name": "Ik ga verhuizen",
-                "description": "Ik verhuis naar een andere woning met andere huurprijs",
+                "description": "Ik verhuis naar een andere woning. Vul je nieuwe adres en huurprijs in en zie wat dat betekent voor je situatie.",
                 "icon": "🏠",
-                "fields": ["huur_per_maand", "postcode", "woonplaats"],
             },
             {
                 "id": "relationship_change",
                 "name": "Ik ga samenwonen/scheiden",
-                "description": "Mijn burgerlijke staat verandert",
+                "description": "Mijn burgerlijke staat verandert. Pas je situatie aan en zie hoe dit je toeslagen beïnvloedt.",
                 "icon": "👥",
-                "fields": ["burgerlijke_staat", "partner_inkomen"],
             },
             {
                 "id": "self_employed",
                 "name": "Ik word zelfstandig ondernemer",
-                "description": "Ik start als ZZP'er of ondernemer",
+                "description": "Ik start als ZZP'er of ondernemer. Vul je verwachte inkomen in en zie hoe dit uitpakt.",
                 "icon": "🚀",
-                "fields": ["inkomen_onderneming", "inkomen_werk"],
             },
             {
                 "id": "retirement",
                 "name": "Ik ga met pensioen",
-                "description": "Ik stop met werken en krijg AOW/pensioen",
+                "description": "Ik stop met werken en krijg AOW/pensioen. Vul je nieuwe situatie in en bereken je inkomsten.",
                 "icon": "🌴",
-                "fields": ["inkomen_werk", "aow", "pensioen"],
             },
             {
                 "id": "custom",
-                "name": "Aangepast scenario (zelf kiezen)",
-                "description": "Kies zelf welke gegevens je wilt aanpassen",
+                "name": "Algemeen scenario",
+                "description": "Pas alle relevante gegevens aan en zie het totaaleffect op je situatie.",
                 "icon": "⚙️",
-                "fields": [],
             },
         ]
 
@@ -496,98 +593,32 @@ async def template_scenario_form(
         # Extract current values from nested profile structure
         current_values = extract_whatif_parameters(person)
 
-        # Define field configurations for each scenario
-        scenario_fields = {
-            "income_increase": [
-                {
-                    "key": "inkomen_werk",
-                    "label": "Nieuw inkomen uit werk",
-                    "type": "number",
-                    "current": current_values.get("inkomen_werk", 0),
-                    "placeholder": "Bijv. 45000",
-                }
-            ],
-            "moving": [
-                {
-                    "key": "huur_per_maand",
-                    "label": "Nieuwe huur per maand",
-                    "type": "number",
-                    "current": current_values.get("huur_per_maand", 0),
-                    "placeholder": "Bijv. 850",
-                },
-                {
-                    "key": "postcode",
-                    "label": "Nieuwe postcode",
-                    "type": "text",
-                    "current": current_values.get("postcode", ""),
-                    "placeholder": "Bijv. 1234AB",
-                },
-                {
-                    "key": "woonplaats",
-                    "label": "Nieuwe woonplaats",
-                    "type": "text",
-                    "current": current_values.get("woonplaats", ""),
-                    "placeholder": "Bijv. Amsterdam",
-                },
-            ],
-            "relationship_change": [
-                {
-                    "key": "burgerlijke_staat",
-                    "label": "Burgerlijke staat",
-                    "type": "select",
-                    "current": current_values.get("burgerlijke_staat", "alleenstaand"),
-                    "options": ["alleenstaand", "gehuwd", "samenwonend", "gescheiden"],
-                },
-                {
-                    "key": "partner_inkomen",
-                    "label": "Inkomen partner (indien van toepassing)",
-                    "type": "number",
-                    "current": current_values.get("partner_inkomen", 0),
-                    "placeholder": "Bijv. 35000",
-                },
-            ],
-            "self_employed": [
-                {
-                    "key": "inkomen_onderneming",
-                    "label": "Inkomen uit onderneming",
-                    "type": "number",
-                    "current": current_values.get("inkomen_onderneming", 0),
-                    "placeholder": "Bijv. 40000",
-                },
-                {
-                    "key": "inkomen_werk",
-                    "label": "Inkomen uit werk (als je deels in dienst blijft)",
-                    "type": "number",
-                    "current": current_values.get("inkomen_werk", 0),
-                    "placeholder": "Bijv. 15000",
-                },
-            ],
-            "retirement": [
-                {
-                    "key": "inkomen_werk",
-                    "label": "Inkomen uit werk (0 als je stopt)",
-                    "type": "number",
-                    "current": current_values.get("inkomen_werk", 0),
-                    "placeholder": "0",
-                },
-                {
-                    "key": "aow",
-                    "label": "AOW per jaar",
-                    "type": "number",
-                    "current": current_values.get("aow", 0),
-                    "placeholder": "Bijv. 14000",
-                },
-                {
-                    "key": "pensioen",
-                    "label": "Pensioen per jaar",
-                    "type": "number",
-                    "current": current_values.get("pensioen", 0),
-                    "placeholder": "Bijv. 20000",
-                },
-            ],
-        }
+        # Get all discoverable laws for this person to determine relevant fields
+        discoverable_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
+        laws_to_check = [(law_info["law"], law_info["service"]) for law_info in discoverable_laws]
 
-        fields = scenario_fields.get(scenario_id, [])
+        # Get required fields based on relevant laws
+        fields_config = get_law_required_fields(laws_to_check, machine_service)
+
+        # Build field list with current values
+        fields = []
+        for field_key, field_config in fields_config.items():
+            field = {
+                "key": field_key,
+                "label": field_config["label"],
+                "type": field_config["type"],
+                "current": current_values.get(field_key, 0 if field_config["type"] == "number" else ""),
+                "placeholder": field_config.get("placeholder", ""),
+            }
+            if "options" in field_config:
+                field["options"] = field_config["options"]
+
+            fields.append(field)
+
+        # Sort fields for consistent display (income first, then other fields)
+        field_order = ["inkomen_werk", "inkomen_onderneming", "vermogen", "huur_per_maand",
+                      "postcode", "woonplaats", "burgerlijke_staat", "partner_inkomen", "aow", "pensioen"]
+        fields.sort(key=lambda f: field_order.index(f["key"]) if f["key"] in field_order else 999)
 
         template = templates.get_template("partials/whatif/template_scenario_form.html")
         return HTMLResponse(
