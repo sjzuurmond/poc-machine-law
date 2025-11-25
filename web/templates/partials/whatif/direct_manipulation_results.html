@@ -51,68 +51,38 @@
     </div>
     {% endif %}
 
-    {% if result and result.output is defined %}
+    {% if data.primary_field %}
     <div class="space-y-2">
-      <!-- Extract main value -->
-      {% if law == 'zorgtoeslagwet' and 'totale_zorgtoeslag_per_maand' in result.output %}
-        {% set new_value = result.output.totale_zorgtoeslag_per_maand %}
-        {% set original_value = original.output.totale_zorgtoeslag_per_maand if original and original.output is defined and 'totale_zorgtoeslag_per_maand' in original.output else 0 %}
+      <!-- Display primary output value with proper type formatting -->
+      {% set primary_field = data.primary_field %}
+      {% set new_value = primary_field.value %}
+
+      <!-- Get original value if available -->
+      {% set original_primary = None %}
+      {% if original and original.output is defined and primary_field.name in original.output %}
+        {% set original_primary = {
+          'value': original.output[primary_field.name],
+          'type': primary_field.type,
+          'name': primary_field.name
+        } %}
+      {% endif %}
+
+      {% if primary_field.type == 'amount' %}
+        {# For amount fields, calculate change in cents then convert #}
+        {% set original_value = original_primary.value if original_primary else 0 %}
         {% set change = new_value - original_value %}
 
         <div class="flex items-baseline justify-between">
           <span class="text-2xl font-bold text-gray-900">
-            {{ new_value|format_currency }}/mnd
+            {{ primary_field|format_field_value }}/mnd
           </span>
 
           {% if change != 0 %}
           <div class="flex items-center space-x-2">
-            <span class="text-sm text-gray-500">was {{ original_value|format_currency }}/mnd</span>
+            <span class="text-sm text-gray-500">was {{ original_primary|format_field_value if original_primary else '€ 0,00' }}/mnd</span>
+            {% set change_field = {'value': change, 'type': 'amount'} %}
             <span class="inline-flex items-center px-2 py-1 rounded text-sm font-medium {% if change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-              {% if change > 0 %}↑{% else %}↓{% endif %} {{ change|format_currency }}
-            </span>
-          </div>
-          {% else %}
-          <span class="text-sm text-gray-500">→ geen verandering</span>
-          {% endif %}
-        </div>
-
-      {% elif law == 'wet_op_de_huurtoeslag' and 'totale_huurtoeslag_per_maand' in result.output %}
-        {% set new_value = result.output.totale_huurtoeslag_per_maand %}
-        {% set original_value = original.output.totale_huurtoeslag_per_maand if original and original.output is defined and 'totale_huurtoeslag_per_maand' in original.output else 0 %}
-        {% set change = new_value - original_value %}
-
-        <div class="flex items-baseline justify-between">
-          <span class="text-2xl font-bold text-gray-900">
-            {{ new_value|format_currency }}/mnd
-          </span>
-
-          {% if change != 0 %}
-          <div class="flex items-center space-x-2">
-            <span class="text-sm text-gray-500">was {{ original_value|format_currency }}/mnd</span>
-            <span class="inline-flex items-center px-2 py-1 rounded text-sm font-medium {% if change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-              {% if change > 0 %}↑{% else %}↓{% endif %} {{ change|format_currency }}
-            </span>
-          </div>
-          {% else %}
-          <span class="text-sm text-gray-500">→ geen verandering</span>
-          {% endif %}
-        </div>
-
-      {% elif law == 'participatiewet' and 'bijstand_per_maand' in result.output %}
-        {% set new_value = result.output.bijstand_per_maand %}
-        {% set original_value = original.output.bijstand_per_maand if original and original.output is defined and 'bijstand_per_maand' in original.output else 0 %}
-        {% set change = new_value - original_value %}
-
-        <div class="flex items-baseline justify-between">
-          <span class="text-2xl font-bold text-gray-900">
-            {{ new_value|format_currency }}/mnd
-          </span>
-
-          {% if change != 0 %}
-          <div class="flex items-center space-x-2">
-            <span class="text-sm text-gray-500">was {{ original_value|format_currency }}/mnd</span>
-            <span class="inline-flex items-center px-2 py-1 rounded text-sm font-medium {% if change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-              {% if change > 0 %}↑{% else %}↓{% endif %} {{ change|format_currency }}
+              {% if change > 0 %}↑{% else %}↓{% endif %} {{ change_field|format_field_value }}
             </span>
           </div>
           {% else %}
@@ -121,21 +91,19 @@
         </div>
 
       {% else %}
-        <!-- Generic output display -->
-        <div class="text-sm text-gray-600">
-          {% for key, value in result.output.items() %}
-          <div class="flex justify-between py-1">
-            <span class="font-medium">{{ key }}:</span>
-            <span>
-              {% if value is number %}
-                {{ value|format_currency }}
-              {% else %}
-                {{ value }}
-              {% endif %}
-            </span>
-          </div>
-          {% endfor %}
+        {# Non-amount fields: display value with type-aware formatting #}
+        <div class="flex items-baseline justify-between">
+          <span class="text-sm font-medium text-gray-600">{{ primary_field.display_name }}:</span>
+          <span class="text-xl font-bold text-gray-900">
+            {{ primary_field|format_field_value }}
+          </span>
         </div>
+
+        {% if original_primary and original_primary.value != new_value %}
+        <div class="text-sm text-gray-500 text-right">
+          was: {{ original_primary|format_field_value }}
+        </div>
+        {% endif %}
       {% endif %}
     </div>
     {% elif 'error' in data %}
@@ -146,44 +114,49 @@
   </div>
   {% endfor %}
 
-  <!-- Summary -->
+  <!-- Summary - Only sum amount-type primary fields -->
   {% set total_new = namespace(value=0) %}
   {% set total_old = namespace(value=0) %}
+  {% set has_amounts = namespace(value=false) %}
 
   {% for law, data in results.items() %}
-    {% set result = data.get('result') %}
+    {% set primary_field = data.get('primary_field') %}
     {% set original = original_results.get(law) %}
 
-    {% if result and result.output is defined %}
-      {% if law == 'zorgtoeslagwet' and 'totale_zorgtoeslag_per_maand' in result.output %}
-        {% set total_new.value = total_new.value + result.output.totale_zorgtoeslag_per_maand %}
-        {% set total_old.value = total_old.value + (original.output.totale_zorgtoeslag_per_maand if original and original.output is defined and 'totale_zorgtoeslag_per_maand' in original.output else 0) %}
-      {% elif law == 'wet_op_de_huurtoeslag' and 'totale_huurtoeslag_per_maand' in result.output %}
-        {% set total_new.value = total_new.value + result.output.totale_huurtoeslag_per_maand %}
-        {% set total_old.value = total_old.value + (original.output.totale_huurtoeslag_per_maand if original and original.output is defined and 'totale_huurtoeslag_per_maand' in original.output else 0) %}
-      {% elif law == 'participatiewet' and 'bijstand_per_maand' in result.output %}
-        {% set total_new.value = total_new.value + result.output.bijstand_per_maand %}
-        {% set total_old.value = total_old.value + (original.output.bijstand_per_maand if original and original.output is defined and 'bijstand_per_maand' in original.output else 0) %}
+    {# Only sum amount-type fields (monetary values) #}
+    {% if primary_field and primary_field.type == 'amount' %}
+      {% set has_amounts.value = true %}
+      {% set total_new.value = total_new.value + primary_field.value %}
+
+      {# Add original value if available #}
+      {% if original and original.output is defined and primary_field.name in original.output %}
+        {% set total_old.value = total_old.value + original.output[primary_field.name] %}
+      {% else %}
+        {% set total_old.value = total_old.value + 0 %}
       {% endif %}
     {% endif %}
   {% endfor %}
 
+  {% if has_amounts.value %}
   {% set total_change = total_new.value - total_old.value %}
+  {% set total_new_field = {'value': total_new.value, 'type': 'amount'} %}
+  {% set total_old_field = {'value': total_old.value, 'type': 'amount'} %}
+  {% set total_change_field = {'value': total_change, 'type': 'amount'} %}
 
   <div class="border-t-2 border-gray-300 pt-4 mt-4">
     <div class="bg-blue-50 rounded-lg p-4">
       <div class="flex items-baseline justify-between mb-2">
         <h3 class="text-lg font-bold text-gray-900">Totaal toeslagen</h3>
         <span class="text-3xl font-bold text-blue-600">
-          {{ total_new.value|format_currency }}/mnd
+          {{ total_new_field|format_field_value }}/mnd
         </span>
       </div>
 
       {% if total_change != 0 %}
       <div class="flex items-center justify-between text-sm">
-        <span class="text-gray-600">Was {{ total_old.value|format_currency }}/mnd</span>
+        <span class="text-gray-600">Was {{ total_old_field|format_field_value }}/mnd</span>
         <span class="inline-flex items-center px-3 py-1 rounded-full text-base font-bold {% if total_change > 0 %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
-          {% if total_change > 0 %}↑{% else %}↓{% endif %} {{ total_change|format_currency }}
+          {% if total_change > 0 %}↑{% else %}↓{% endif %} {{ total_change_field|format_field_value }}
         </span>
       </div>
       {% else %}
@@ -191,4 +164,5 @@
       {% endif %}
     </div>
   </div>
+  {% endif %}
 </div>
