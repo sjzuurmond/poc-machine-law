@@ -14,6 +14,227 @@ router = APIRouter(prefix="/whatif", tags=["whatif"])
 logger = logging.getLogger(__name__)
 
 
+def get_all_known_data_with_sources(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Extract all known data about the user with source information.
+
+    Returns a list of data items with their values and sources for display.
+
+    Args:
+        profile: Nested profile dictionary from get_profile_data()
+
+    Returns:
+        List of dictionaries with format:
+        [{
+            'category': 'Persoonlijke gegevens',
+            'label': 'Geboortedatum',
+            'value': '1989-05-15',
+            'source': 'RvIG',
+            'field_key': 'geboortedatum',
+            'editable': False
+        }, ...]
+    """
+    data_items = []
+
+    if not profile or "sources" not in profile:
+        return data_items
+
+    sources = profile["sources"]
+
+    # Personal data from RvIG
+    if "RvIG" in sources:
+        if "personen" in sources["RvIG"] and sources["RvIG"]["personen"]:
+            person = sources["RvIG"]["personen"][0]
+
+            data_items.append(
+                {
+                    "category": "Persoonlijke gegevens",
+                    "label": "BSN",
+                    "value": person.get("bsn", "Onbekend"),
+                    "source": "RvIG - Basisregistratie Personen",
+                    "field_key": "bsn",
+                    "editable": False,
+                }
+            )
+
+            data_items.append(
+                {
+                    "category": "Persoonlijke gegevens",
+                    "label": "Geboortedatum",
+                    "value": person.get("geboortedatum", "Onbekend"),
+                    "source": "RvIG - Basisregistratie Personen",
+                    "field_key": "geboortedatum",
+                    "editable": False,
+                }
+            )
+
+            data_items.append(
+                {
+                    "category": "Persoonlijke gegevens",
+                    "label": "Leeftijd",
+                    "value": f"{person.get('age', 'Onbekend')} jaar",
+                    "source": "RvIG - Berekend",
+                    "field_key": "age",
+                    "editable": False,
+                }
+            )
+
+            data_items.append(
+                {
+                    "category": "Persoonlijke gegevens",
+                    "label": "Nationaliteit",
+                    "value": person.get("nationaliteit", "Onbekend"),
+                    "source": "RvIG - Basisregistratie Personen",
+                    "field_key": "nationaliteit",
+                    "editable": False,
+                }
+            )
+
+        # Address data
+        if "verblijfplaats" in sources["RvIG"] and sources["RvIG"]["verblijfplaats"]:
+            address = sources["RvIG"]["verblijfplaats"][0]
+
+            full_address = f"{address.get('straat', '')} {address.get('huisnummer', '')}, {address.get('postcode', '')} {address.get('woonplaats', '')}"
+            data_items.append(
+                {
+                    "category": "Woongegevens",
+                    "label": "Adres",
+                    "value": full_address.strip(),
+                    "source": "RvIG - Basisregistratie Adressen",
+                    "field_key": "adres",
+                    "editable": False,
+                }
+            )
+
+            data_items.append(
+                {
+                    "category": "Woongegevens",
+                    "label": "Postcode",
+                    "value": address.get("postcode", "Onbekend"),
+                    "source": "RvIG",
+                    "field_key": "postcode",
+                    "editable": True,
+                }
+            )
+
+            data_items.append(
+                {
+                    "category": "Woongegevens",
+                    "label": "Woonplaats",
+                    "value": address.get("woonplaats", "Onbekend"),
+                    "source": "RvIG",
+                    "field_key": "woonplaats",
+                    "editable": True,
+                }
+            )
+
+        # Relationship status
+        if "relaties" in sources["RvIG"] and sources["RvIG"]["relaties"]:
+            relaties = sources["RvIG"]["relaties"][0]
+            partnerschap = relaties.get("partnerschap_type", "GEEN")
+
+            # Map to Dutch
+            status_map = {
+                "GEHUWD": "Gehuwd",
+                "SAMENWONEND": "Samenwonend",
+                "GESCHEIDEN": "Gescheiden",
+                "GEEN": "Alleenstaand",
+            }
+
+            data_items.append(
+                {
+                    "category": "Gezinssituatie",
+                    "label": "Burgerlijke staat",
+                    "value": status_map.get(partnerschap, partnerschap),
+                    "source": "RvIG - Basisregistratie Personen",
+                    "field_key": "burgerlijke_staat",
+                    "editable": True,
+                }
+            )
+
+            if "kinderen" in relaties and relaties["kinderen"]:
+                data_items.append(
+                    {
+                        "category": "Gezinssituatie",
+                        "label": "Aantal kinderen",
+                        "value": str(len(relaties["kinderen"])),
+                        "source": "RvIG - Basisregistratie Personen",
+                        "field_key": "aantal_kinderen",
+                        "editable": False,
+                    }
+                )
+
+    # Income data from Belastingdienst
+    if "BELASTINGDIENST" in sources:
+        if "box1" in sources["BELASTINGDIENST"] and sources["BELASTINGDIENST"]["box1"]:
+            box1 = sources["BELASTINGDIENST"]["box1"][0]
+
+            loon = box1.get("loon_uit_dienstbetrekking", 0)
+            if loon > 0:
+                data_items.append(
+                    {
+                        "category": "Inkomen",
+                        "label": "Loon uit dienstbetrekking",
+                        "value": f"€ {loon:,.0f}".replace(",", "."),
+                        "source": "Belastingdienst - Box 1",
+                        "field_key": "inkomen_werk",
+                        "editable": True,
+                    }
+                )
+
+            onderneming = box1.get("winst_uit_onderneming", 0)
+            if onderneming > 0:
+                data_items.append(
+                    {
+                        "category": "Inkomen",
+                        "label": "Winst uit onderneming",
+                        "value": f"€ {onderneming:,.0f}".replace(",", "."),
+                        "source": "Belastingdienst - Box 1",
+                        "field_key": "inkomen_onderneming",
+                        "editable": True,
+                    }
+                )
+
+        # Assets/vermogen
+        if (
+            "belastingdienst_vermogen" in sources["BELASTINGDIENST"]
+            and sources["BELASTINGDIENST"]["belastingdienst_vermogen"]
+        ):
+            vermogen_data = sources["BELASTINGDIENST"]["belastingdienst_vermogen"][0]
+            vermogen = vermogen_data.get("vermogen", 0)
+            if vermogen > 0:
+                data_items.append(
+                    {
+                        "category": "Vermogen",
+                        "label": "Spaargeld en bezittingen",
+                        "value": f"€ {vermogen:,.0f}".replace(",", "."),
+                        "source": "Belastingdienst - Vermogen",
+                        "field_key": "vermogen",
+                        "editable": True,
+                    }
+                )
+
+    # Rent data from Toeslagen
+    if "TOESLAGEN" in sources:
+        if "huur_en_woongegevens" in sources["TOESLAGEN"] and sources["TOESLAGEN"]["huur_en_woongegevens"]:
+            huur_data = sources["TOESLAGEN"]["huur_en_woongegevens"][0]
+            huurprijs = huur_data.get("huurprijs", 0)
+            if huurprijs > 0:
+                huur_per_maand = huurprijs / 12
+                data_items.append(
+                    {
+                        "category": "Woongegevens",
+                        "label": "Huur per maand",
+                        "value": f"€ {huur_per_maand:,.0f}".replace(",", "."),
+                        "source": "Toeslagen - Huurgegevens",
+                        "field_key": "huur_per_maand",
+                        "editable": True,
+                    }
+                )
+
+    return data_items
+
+
 def extract_whatif_parameters(profile: dict[str, Any]) -> dict[str, Any]:
     """
     Extract commonly adjusted parameters from nested profile structure.
@@ -311,11 +532,10 @@ def format_output_value(field_info: dict[str, Any]) -> str:
         return "Ja" if value else "Nee"
 
     # Handle amounts (monetary values in cents)
-    if field_type == "amount":
-        if isinstance(value, (int, float)):
-            # Amounts in the system are in cents, convert to euros
-            euro_value = value / 100
-            return f"€ {euro_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    if field_type == "amount" and isinstance(value, (int, float)):
+        # Amounts in the system are in cents, convert to euros
+        euro_value = value / 100
+        return f"€ {euro_value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
     # Handle regular numbers
     if field_type == "number":
@@ -329,7 +549,6 @@ def format_output_value(field_info: dict[str, Any]) -> str:
 
     # Default: return as string
     return str(value)
-
 
 
 @router.get("/direct-manipulation", response_class=HTMLResponse)
@@ -642,22 +861,36 @@ async def template_scenario_form(
 
             # Add any law-required fields that overlap with focus areas
             # This ensures we don't miss critical fields for laws affected by the scenario
-            for field_key in all_fields_config.keys():
+            for field_key in all_fields_config:
                 # If this field is needed by any relevant law AND is in our focus area, include it
-                if field_key in focus_fields or any(keyword in field_key for keyword in
-                    ['inkomen', 'vermogen', 'huur', 'postcode', 'woonplaats', 'burgerlijk', 'partner', 'aow', 'pensioen']):
+                if field_key in focus_fields or any(
+                    keyword in field_key
+                    for keyword in [
+                        "inkomen",
+                        "vermogen",
+                        "huur",
+                        "postcode",
+                        "woonplaats",
+                        "burgerlijk",
+                        "partner",
+                        "aow",
+                        "pensioen",
+                    ]
+                ):
                     # Only add if it's contextually relevant to the scenario
-                    if scenario_id == "moving" and field_key in ["huur_per_maand", "postcode", "woonplaats"]:
-                        fields_to_show.add(field_key)
-                    elif scenario_id == "income_increase" and "inkomen" in field_key:
-                        fields_to_show.add(field_key)
-                    elif scenario_id == "relationship_change" and ("burgerlijk" in field_key or "partner" in field_key):
-                        fields_to_show.add(field_key)
-                    elif scenario_id == "self_employed" and "inkomen" in field_key:
-                        fields_to_show.add(field_key)
-                    elif scenario_id == "retirement" and (field_key in ["inkomen_werk", "aow", "pensioen"]):
-                        fields_to_show.add(field_key)
-                    elif field_key in focus_fields:
+                    if (
+                        scenario_id == "moving"
+                        and field_key in ["huur_per_maand", "postcode", "woonplaats"]
+                        or scenario_id == "income_increase"
+                        and "inkomen" in field_key
+                        or scenario_id == "relationship_change"
+                        and ("burgerlijk" in field_key or "partner" in field_key)
+                        or scenario_id == "self_employed"
+                        and "inkomen" in field_key
+                        or scenario_id == "retirement"
+                        and (field_key in ["inkomen_werk", "aow", "pensioen"])
+                        or field_key in focus_fields
+                    ):
                         fields_to_show.add(field_key)
         else:
             # Custom scenario: show all relevant fields
@@ -681,8 +914,18 @@ async def template_scenario_form(
                 fields.append(field)
 
         # Sort fields for consistent display (income first, then other fields)
-        field_order = ["inkomen_werk", "inkomen_onderneming", "vermogen", "huur_per_maand",
-                      "postcode", "woonplaats", "burgerlijke_staat", "partner_inkomen", "aow", "pensioen"]
+        field_order = [
+            "inkomen_werk",
+            "inkomen_onderneming",
+            "vermogen",
+            "huur_per_maand",
+            "postcode",
+            "woonplaats",
+            "burgerlijke_staat",
+            "partner_inkomen",
+            "aow",
+            "pensioen",
+        ]
         fields.sort(key=lambda f: field_order.index(f["key"]) if f["key"] in field_order else 999)
 
         template = templates.get_template("partials/whatif/template_scenario_form.html")
@@ -1274,3 +1517,41 @@ def _extract_main_value(result: Any) -> float | None:
                 return float(value)
 
     return None
+
+
+@router.get("/data-overview", response_class=HTMLResponse)
+async def data_overview_panel(
+    request: Request,
+    bsn: str,
+    machine_service: EngineInterface = Depends(get_machine_service),
+) -> HTMLResponse:
+    """
+    Render a panel showing all known data about the user with sources.
+    """
+    try:
+        person = machine_service.get_profile_data(bsn)
+        if not person:
+            raise HTTPException(status_code=404, detail="Person not found")
+
+        # Get all known data with sources
+        all_data = get_all_known_data_with_sources(person)
+
+        # Group by category
+        grouped_data = {}
+        for item in all_data:
+            category = item["category"]
+            if category not in grouped_data:
+                grouped_data[category] = []
+            grouped_data[category].append(item)
+
+        template = templates.get_template("partials/whatif/data_overview.html")
+        return HTMLResponse(
+            template.render(
+                request=request,
+                bsn=bsn,
+                grouped_data=grouped_data,
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error loading data overview: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
