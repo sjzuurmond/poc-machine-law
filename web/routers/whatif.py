@@ -71,6 +71,36 @@ def extract_whatif_parameters(profile: dict[str, Any]) -> dict[str, Any]:
         if partner_data:
             params["partner_inkomen"] = partner_data[0].get("inkomen", 0)
 
+    # Extract address information (postcode, woonplaats)
+    if "RvIG" in sources and "verblijfplaats" in sources["RvIG"]:
+        verblijf_data = sources["RvIG"]["verblijfplaats"]
+        if verblijf_data:
+            params["postcode"] = verblijf_data[0].get("postcode", "")
+            params["woonplaats"] = verblijf_data[0].get("woonplaats", "")
+
+    # Extract relationship status (burgerlijke_staat)
+    if "RvIG" in sources and "relaties" in sources["RvIG"]:
+        relatie_data = sources["RvIG"]["relaties"]
+        if relatie_data:
+            partnerschap_type = relatie_data[0].get("partnerschap_type", "GEEN")
+            # Map partnerschap_type to burgerlijke_staat
+            if partnerschap_type == "GEHUWD":
+                params["burgerlijke_staat"] = "gehuwd"
+            elif partnerschap_type == "SAMENWONEND":
+                params["burgerlijke_staat"] = "samenwonend"
+            elif partnerschap_type == "GESCHEIDEN":
+                params["burgerlijke_staat"] = "gescheiden"
+            else:
+                params["burgerlijke_staat"] = "alleenstaand"
+
+    # Extract AOW and pension (if available in profile)
+    # These are typically not in the profile data yet, but we add extraction logic for future use
+    if "BELASTINGDIENST" in sources and "box1" in sources["BELASTINGDIENST"]:
+        box1_data = sources["BELASTINGDIENST"]["box1"]
+        if box1_data:
+            params["aow"] = box1_data[0].get("uitkeringen_en_pensioenen", 0)
+            params["pensioen"] = box1_data[0].get("pensioen", 0)
+
     return params
 
 
@@ -463,6 +493,9 @@ async def template_scenario_form(
         if not person:
             raise HTTPException(status_code=404, detail="Person not found")
 
+        # Extract current values from nested profile structure
+        current_values = extract_whatif_parameters(person)
+
         # Define field configurations for each scenario
         scenario_fields = {
             "income_increase": [
@@ -470,7 +503,7 @@ async def template_scenario_form(
                     "key": "inkomen_werk",
                     "label": "Nieuw inkomen uit werk",
                     "type": "number",
-                    "current": person.get("inkomen_werk", 0),
+                    "current": current_values.get("inkomen_werk", 0),
                     "placeholder": "Bijv. 45000",
                 }
             ],
@@ -479,21 +512,21 @@ async def template_scenario_form(
                     "key": "huur_per_maand",
                     "label": "Nieuwe huur per maand",
                     "type": "number",
-                    "current": person.get("huur_per_maand", 0),
+                    "current": current_values.get("huur_per_maand", 0),
                     "placeholder": "Bijv. 850",
                 },
                 {
                     "key": "postcode",
                     "label": "Nieuwe postcode",
                     "type": "text",
-                    "current": person.get("postcode", ""),
+                    "current": current_values.get("postcode", ""),
                     "placeholder": "Bijv. 1234AB",
                 },
                 {
                     "key": "woonplaats",
                     "label": "Nieuwe woonplaats",
                     "type": "text",
-                    "current": person.get("woonplaats", ""),
+                    "current": current_values.get("woonplaats", ""),
                     "placeholder": "Bijv. Amsterdam",
                 },
             ],
@@ -502,14 +535,14 @@ async def template_scenario_form(
                     "key": "burgerlijke_staat",
                     "label": "Burgerlijke staat",
                     "type": "select",
-                    "current": person.get("burgerlijke_staat", ""),
+                    "current": current_values.get("burgerlijke_staat", "alleenstaand"),
                     "options": ["alleenstaand", "gehuwd", "samenwonend", "gescheiden"],
                 },
                 {
                     "key": "partner_inkomen",
                     "label": "Inkomen partner (indien van toepassing)",
                     "type": "number",
-                    "current": person.get("partner_inkomen", 0),
+                    "current": current_values.get("partner_inkomen", 0),
                     "placeholder": "Bijv. 35000",
                 },
             ],
@@ -518,14 +551,14 @@ async def template_scenario_form(
                     "key": "inkomen_onderneming",
                     "label": "Inkomen uit onderneming",
                     "type": "number",
-                    "current": person.get("inkomen_onderneming", 0),
+                    "current": current_values.get("inkomen_onderneming", 0),
                     "placeholder": "Bijv. 40000",
                 },
                 {
                     "key": "inkomen_werk",
                     "label": "Inkomen uit werk (als je deels in dienst blijft)",
                     "type": "number",
-                    "current": person.get("inkomen_werk", 0),
+                    "current": current_values.get("inkomen_werk", 0),
                     "placeholder": "Bijv. 15000",
                 },
             ],
@@ -534,21 +567,21 @@ async def template_scenario_form(
                     "key": "inkomen_werk",
                     "label": "Inkomen uit werk (0 als je stopt)",
                     "type": "number",
-                    "current": person.get("inkomen_werk", 0),
+                    "current": current_values.get("inkomen_werk", 0),
                     "placeholder": "0",
                 },
                 {
                     "key": "aow",
                     "label": "AOW per jaar",
                     "type": "number",
-                    "current": person.get("aow", 0),
+                    "current": current_values.get("aow", 0),
                     "placeholder": "Bijv. 14000",
                 },
                 {
                     "key": "pensioen",
                     "label": "Pensioen per jaar",
                     "type": "number",
-                    "current": person.get("pensioen", 0),
+                    "current": current_values.get("pensioen", 0),
                     "placeholder": "Bijv. 20000",
                 },
             ],
