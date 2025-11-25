@@ -45,6 +45,21 @@
       <p class="text-xs text-gray-500 text-right">→ geen verandering</p>
       {% endif %}
     </div>
+  {% elif result and result.missing_required is defined and result.missing_required %}
+    <div class="border-l-4 border-yellow-400 pl-4 py-2">
+      <div class="flex items-baseline justify-between mb-2">
+        <h3 class="text-sm font-semibold text-gray-700">{{ display_name }}:</h3>
+        <span class="text-sm text-yellow-600 font-medium">Gegevens ontbreken</span>
+      </div>
+      <div class="text-xs text-yellow-700 bg-yellow-50 rounded p-2">
+        <p class="font-semibold mb-1">⚠️ Ontbrekend:</p>
+        <ul class="space-y-0.5 ml-4">
+          {% for field in result.missing_required %}
+          <li class="font-mono">• {{ field }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
   {% elif result and result.requirements_met is defined and not result.requirements_met %}
     <div class="border-l-4 border-gray-300 pl-4 py-2">
       <div class="flex items-baseline justify-between">
