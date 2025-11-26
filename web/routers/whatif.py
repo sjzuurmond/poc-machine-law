@@ -52,7 +52,7 @@ SCENARIO_TEMPLATES = {
     "moving": {
         "title": "Ik ga verhuizen",
         "description": "Ik verhuis naar andere woning",
-        "keywords": ["huur", "postcode", "woonplaats", "adres"],
+        "keywords": ["huur", "woon", "postcode", "woonplaats", "adres", "woning"],
         "icon": "🏠",
     },
     "relationship_change": {
@@ -166,32 +166,45 @@ def is_personal_field(field_key: str, prop_spec: dict[str, Any] | None) -> bool:
     """
     field_key_lower = field_key.lower()
 
-    # Skip known law parameters/constants
+    # Skip known law parameters/constants (these are clearly from the law, not personal data)
     skip_patterns = [
         "grens",  # grensbedrag, grenswaarde, etc.
         "drempel",
         "percentage",
         "factor",
-        "maximum",
-        "minimum",
+        "maximum_",  # maximum_huur, etc (but not just "maximum")
+        "minimum_",  # minimum_inkomen, etc
         "norm",
         "tarief",
         "toeslag_tabel",
         "kwaliteitskortingsgrens",
         "liberalisatiegrens",
         "aftoppingsgrens",
-        "basisbedrag",  # Unless it's specifically for the person
+        "basisbedrag",
+        "referentie",
+        "_tabel",  # Any lookup table
+        "peiljaar",
+        "peildatum",
     ]
 
     for pattern in skip_patterns:
         if pattern in field_key_lower:
             return False
 
-    # Include known personal data patterns
+    # Check if property spec indicates it's from a service (personal data source)
+    # This is the most reliable indicator - if it comes from a service, it's personal data
+    if prop_spec:
+        source = prop_spec.get("source", "")
+        if source and source != "":
+            # If it has a source, it's from external data (profiles.yaml), so it's personal
+            return True
+
+    # Include known personal data patterns (be inclusive rather than exclusive)
     personal_patterns = [
         "inkomen",
         "vermogen",
         "huur",
+        "woonlasten",
         "partner",
         "toeslagpartner",
         "woonplaats",
@@ -199,11 +212,16 @@ def is_personal_field(field_key: str, prop_spec: dict[str, Any] | None) -> bool:
         "burgerlijk",
         "gehuwd",
         "samenwonen",
+        "alleenstaand",
         "kinderen",
         "kind",
+        "personen",
+        "gezin",
+        "huishoud",
         "leeftijd",
         "adres",
         "woning",
+        "woon",  # woonplaats, woonadres, etc.
         "loon",
         "salaris",
         "uitkering",
@@ -211,20 +229,27 @@ def is_personal_field(field_key: str, prop_spec: dict[str, Any] | None) -> bool:
         "aow",
         "eigenwoningforfait",
         "hypotheekrente",
+        "eigendom",
+        "bezit",
+        "spaargeld",
+        "schuld",
+        "baan",
+        "werk",
     ]
 
     for pattern in personal_patterns:
         if pattern in field_key_lower:
             return True
 
-    # Check if property spec indicates it's from a service (personal data source)
+    # Default: if numeric and not clearly a law parameter, include it
+    # We're being conservative but inclusive - better to show too much than too little
     if prop_spec:
-        source = prop_spec.get("source", "")
-        if source and source != "law":  # If it comes from a service, it's personal data
+        prop_type = prop_spec.get("type", "")
+        if prop_type in ["number", "integer", "boolean"]:
+            # Numeric or boolean fields are likely to be personal data unless filtered above
             return True
 
-    # Default: if numeric and not clearly a parameter, it might be personal
-    # But be conservative - only include if we're sure
+    # For text fields, be more conservative
     return False
 
 
@@ -252,6 +277,12 @@ def get_fields_from_law_inputs(
     for law_info in laws:
         service = law_info["service"]
         law = law_info["law"]
+
+        # Check if this law is relevant for the scenario based on keywords
+        law_is_relevant = False
+        if focus_keywords:
+            law_lower = law.lower()
+            law_is_relevant = any(keyword.lower() in law_lower for keyword in focus_keywords)
 
         try:
             # Evaluate the law to get current input values
@@ -285,7 +316,11 @@ def get_fields_from_law_inputs(
                     continue
 
                 # Filter by keywords if specified
-                if focus_keywords:
+                # Include field if:
+                # 1. No keywords specified (show all), OR
+                # 2. Law name contains keyword (all fields from relevant law), OR
+                # 3. Field name contains keyword
+                if focus_keywords and not law_is_relevant:
                     field_key_lower = field_key.lower()
                     if not any(keyword.lower() in field_key_lower for keyword in focus_keywords):
                         continue
