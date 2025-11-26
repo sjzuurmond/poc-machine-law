@@ -12,6 +12,8 @@ from explain.llm_factory import llm_factory
 from web.dependencies import TODAY, get_case_manager, get_claim_manager, get_engine_id, get_machine_service, templates
 from web.engines import CaseManagerInterface, ClaimManagerInterface, EngineInterface, RuleResult
 from web.feature_flags import is_wallet_enabled
+import requests
+
 
 router = APIRouter(prefix="/laws", tags=["laws"])
 
@@ -435,9 +437,305 @@ async def application_panel(
             "partials/tiles/components/application_panel.html",
             {
                 "request": request,
-                "error": "Er is een fout opgetreden bij het genereren van het aanvraagformulier. Probeer het later opnieuw.",
+                "error": (
+                    "Er is een fout opgetreden bij het genereren van het aanvraagformulier. Probeer het later opnieuw."
+                ),
                 "service": service,
                 "law": law,
                 "current_engine_id": get_engine_id(),
             },
+        )
+
+
+def extract_thresholds_from_spec(rule_spec: dict[str, Any], input_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Extract income thresholds from rule specification requirements.
+    This helps identify critical boundaries where benefits change.
+
+    Args:
+        rule_spec: The rule specification dictionary
+        input_data: The input data used for evaluation
+
+    Returns:
+        List of threshold information dictionaries
+    """
+    thresholds = []
+
+    # Calculate total income from input
+    total_income = 0
+    income_fields = [
+        "loon_uit_dienstbetrekking",
+        "uitkeringen_en_pensioenen",
+        "winst_uit_onderneming",
+        "resultaat_overige_werkzaamheden",
+        "reguliere_voordelen",
+        "vervreemdingsvoordelen",
+        "voordeel_sparen_beleggen",
+    ]
+
+    for field in income_fields:
+        if input_data and field in input_data and isinstance(input_data[field], (int, float)):
+            total_income += input_data[field]
+
+    # Try to extract thresholds from requirements
+    # TODO: Parse requirements to extract actual threshold values from law specifications
+    # requirements = rule_spec.get("requirements", [])
+    # This is a PLACEHOLDER - real implementation would parse the requirement logic
+    # to extract thresholds dynamically from expressions like "toetsingsinkomen < 43651"
+
+    # For now, use common Dutch benefit thresholds as fallback
+    # TODO: Extract these dynamically from the law specifications
+    common_thresholds = [
+        {
+            "name": "Zorgtoeslag maximum inkomen (alleenstaand)",
+            "value": 4365100,  # €43,651 (2024)
+            "type": "income_limit",
+            "description": "Boven dit inkomen komt u niet meer in aanmerking voor zorgtoeslag",
+        },
+        {
+            "name": "Huurtoeslag maximum inkomen (alleenstaand)",
+            "value": 3067400,  # €30,674 (2024)
+            "type": "income_limit",
+            "description": "Boven dit inkomen komt u niet meer in aanmerking voor huurtoeslag",
+        },
+        {
+            "name": "Kindgebonden budget afbouwgrens",
+            "value": 2400000,  # €24,000
+            "type": "income_limit",
+            "description": "Vanaf dit inkomen wordt het kindgebonden budget afgebouwd",
+        },
+    ]
+
+    # Only include thresholds that are relevant (within reasonable range of current income)
+    for threshold in common_thresholds:
+        if total_income > 0 and abs(total_income - threshold["value"]) < threshold["value"] * 0.6:
+            thresholds.append(
+                {
+                    "name": threshold["name"],
+                    "threshold_value": threshold["value"],
+                    "current_value": total_income,
+                    "type": threshold["type"],
+                    "description": threshold["description"],
+                    "distance": abs(total_income - threshold["value"]),
+                    "is_close": abs(total_income - threshold["value"]) < 500000,  # Within €5000
+                }
+            )
+
+    return thresholds
+
+@router.post("/test")
+async def test_post_request(
+    request: Request
+):
+    return {"hoi": "hey"}
+
+@router.post("/simulate")
+async def simulate_scenario(
+    request: Request,
+    machine_service: EngineInterface = Depends(get_machine_service),
+):
+    """
+    Simulate a scenario with fictional data without creating cases or claims.
+    This allows citizens to perform 'what-if' calculations (proefberekening).
+    """
+    try:
+        # Get the request body
+        body = await request.json()
+
+        bsn = body.get("bsn")
+        scenario_data = body.get("scenario_data", {})
+        effective_date = body.get("effective_date")
+
+        if not bsn:
+            return JSONResponse(
+                {"status": "error", "message": "BSN is required"},
+                status_code=400,
+            )
+
+        # Get all discoverable service laws
+        discoverable_service_laws = machine_service.get_sorted_discoverable_service_laws(bsn)
+
+        # Tijdelijke variableen
+        gezamenlijk_vermogen = 0.0
+        box1_inkomen = 0.0
+
+        # Evaluate all laws with the scenario data
+        results = []
+        for service_law in discoverable_service_laws:
+            service = service_law["service"]
+            law = service_law["law"]
+
+            try:
+                parameters={"BSN": bsn}
+
+                if (law == "wet_inkomstenbelasting"):
+                    if ("spaargeld" in scenario_data):
+                        parameters['BOX3_SPAREN'] = scenario_data['spaargeld']
+                    if ('beleggingen' in scenario_data):
+                        parameters['BOX3_BELEGGEN'] = scenario_data['beleggingen']
+                    if ('schulden' in scenario_data):
+                        parameters['BOX3_SCHULDEN'] = scenario_data['schulden']
+                    if ('onroerend_goed' in scenario_data):
+                        parameters['BOX3_ONROEREND_GOED'] = scenario_data['onroerend_goed']
+
+                    if ('loon_uit_dienstbetrekking' in scenario_data):
+                        parameters['BOX1_DIENSTBETREKKING'] = scenario_data['loon_uit_dienstbetrekking']
+                    if ('winst_uit_onderneming' in scenario_data):
+                        parameters['BOX1_ONDERNEMING'] = scenario_data['winst_uit_onderneming']
+                    if ('uitkeringen_en_pensioenen' in scenario_data):
+                        parameters['BOX1_UITKERINGEN'] = scenario_data['uitkeringen_en_pensioenen']
+                    if ('resultaat_overige_werkzaamheden' in scenario_data):
+                        parameters['BOX1_OVERIGE_WERKZAAMHEDEN'] = scenario_data['resultaat_overige_werkzaamheden']
+
+                if (law == "wet_op_de_huurtoeslag"):
+                    # Dit gaat goed omdat wet_inkomstenbelasting eerst wordt uitgerekend :)
+                    # Maar de schoonheidsprijs gaat dit natuurlijk niet verdienen.
+                    parameters['gezamenlijk_vermogen'] = gezamenlijk_vermogen
+                if (law == "zorgtoeslagwet"):
+                    # Dit gaat goed omdat wet_inkomstenbelasting eerst wordt uitgerekend :)
+                    # Maar de schoonheidsprijs gaat dit natuurlijk niet verdienen.
+                    parameters['gezamenlijk_vermogen'] = gezamenlijk_vermogen 
+                    parameters['gezamenlijk_jaarinkomen'] = box1_inkomen  
+                # if (law == "wet_kinderopvang"):                
+
+                # Evaluate the law with scenario data as overwrite_input
+                result = machine_service.evaluate(
+                    service=service,
+                    law=law,
+                    parameters=parameters,
+                    reference_date=TODAY,
+                    effective_date=effective_date,
+                    approved=False,
+                    overwrite_input=scenario_data,
+                ) 
+
+                """ if (law == "wet_op_de_huurtoeslag"):
+                    print("-----------------------------")
+                    print("INPUT:")
+                    for key, value in result.input.items() :
+                        print(f"    {key}: {value}")
+
+                    print("OVERWRITE:")
+                    print(scenario_data)
+
+                    print("LAW")
+                    print(law)
+                    print(service)
+
+                    print("OUTPUT")
+                    print(result.output)
+
+                    # for key, value in result.output.items() :
+                    #    print(f"    {key}: {value}")
+
+                    # result.output["hoogte_toeslag"] = 0
+                    # result.output["is_verzekerde_zorgtoeslag"] = False
+
+                    huurprijs = scenario_data['huurprijs']
+
+                    print('huurprijs: ')
+                    print(huurprijs)
+
+                    print("-----------------------------")
+
+                    data = {
+                      "request": {
+                        "rekenjaar": 2025,"grondslagensets": [
+                                {
+                                "gezamenlijkJaarinkomen": [
+                                    {
+                                    "van": "2025-01-01","tot": "2026-01-01","waarde": "15000"
+                                    }
+                                ],"gezamenlijkVermogen": [
+                                    {
+                                    "van": "2025-01-01","tot": "2026-01-01","waarde": "20000"
+                                    }
+                                ],"rekenhuur": [
+                                    {
+                                    "van": "2025-01-01","tot": "2026-01-01","waarde": huurprijs / 100
+                                    }
+                                ],"soortHuishouden": [
+                                    {
+                                    "van": "2025-01-01","tot": "2026-01-01","waarde": "alleenstaand"
+                                    }
+                                ]
+                                }
+                            ]
+                        }
+                    }
+                    response = requests.post('http://localhost:9010/fld-hu-Huurtoeslag-ws/rest/BerekenRechtEnHoogte', json=data)
+
+                    respJson = response.json()
+
+                    print("---- repsonse ----")
+                    print(respJson)
+                    print("----------")
+                    print(respJson['response']['berekeningen'][0]['jaartotaal'])
+
+
+                    subsidiebedrag = respJson['response']['berekeningen'][0]['jaartotaal']
+
+                    result.output['subsidiebedrag'] = subsidiebedrag
+                    result.output['basishuur'] = huurprijs
+                    result.requirements_met = subsidiebedrag > 0.0
+                    result.missing_required = []
+
+                    print('###########') """
+
+
+                rule_spec = machine_service.get_rule_spec(law, TODAY, service)
+
+                # Extract thresholds from requirements (if any)
+                thresholds = extract_thresholds_from_spec(rule_spec, result.input)
+
+                if (law == "wet_inkomstenbelasting"):
+                    print("LAW: wet_inkomstenbelasting -> gezamenlijk_vermogen: ")
+                    print(result.output['gezamenlijk_vermogen'])
+                    gezamenlijk_vermogen = result.output['gezamenlijk_vermogen']
+                    print("LAW: wet_inkomstenbelasting -> box1 inkomen: ")
+                    print(result.output['box1_inkomen'])
+                    box1_inkomen = result.output['box1_inkomen']
+
+                if (law == "wet_kinderopvang"):
+                    print("LAW: wet_kinderopvang")
+                    print("input:")
+                    print(result.output)
+                    print("output:")
+                    print(result.output)
+
+                results.append(
+                    {
+                        "service": service,
+                        "law": law,
+                        "law_name": rule_spec.get("name", law),
+                        "output": result.output,
+                        "input": result.input,
+                        "requirements_met": result.requirements_met,
+                        "missing_required": result.missing_required,
+                        "thresholds": thresholds,  # Add threshold information
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Error evaluating {service}/{law} for simulation: {e}")
+                results.append(
+                    {
+                        "service": service,
+                        "law": law,
+                        "error": str(e),
+                    }
+                )
+
+        return JSONResponse(
+            {
+                "status": "ok",
+                "results": results,
+                "scenario_data": scenario_data,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error in simulate_scenario: {e}")
+        return JSONResponse(
+            {"status": "error", "message": str(e)},
+            status_code=500,
         )
