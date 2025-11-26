@@ -8,10 +8,37 @@ from fastapi.responses import HTMLResponse
 
 from web.dependencies import TODAY, get_machine_service, templates
 from web.engines import EngineInterface
+from web.feature_flags import (
+    is_change_wizard_enabled,
+    is_chat_enabled,
+    is_wallet_enabled,
+)
 
 router = APIRouter(prefix="/whatif", tags=["whatif"])
 
 logger = logging.getLogger(__name__)
+
+
+def get_base_template_context(request: Request, bsn: str, machine_service: EngineInterface) -> dict[str, Any]:
+    """
+    Get base context variables required by base.html template.
+
+    Args:
+        request: FastAPI request
+        bsn: Citizen identifier
+        machine_service: Engine interface
+
+    Returns:
+        Dictionary with base template context
+    """
+    return {
+        "request": request,
+        "bsn": bsn,
+        "all_profiles": machine_service.get_all_profiles(),
+        "wallet_enabled": is_wallet_enabled(),
+        "chat_enabled": is_chat_enabled(),
+        "change_wizard_enabled": is_change_wizard_enabled(),
+    }
 
 
 # Scenario template definitions
@@ -489,15 +516,12 @@ def get_primary_output_field(law: str, output: dict[str, Any], machine_service: 
 
 
 @router.get("/")
-async def whatif_index(request: Request, bsn: str = "100000001"):
+async def whatif_index(
+    request: Request, bsn: str = "100000001", machine_service: EngineInterface = Depends(get_machine_service)
+):
     """Main whatif scenarios page with navigation to different patterns"""
-    return templates.TemplateResponse(
-        "whatif/index.html",
-        {
-            "request": request,
-            "bsn": bsn,
-        },
-    )
+    context = get_base_template_context(request, bsn, machine_service)
+    return templates.TemplateResponse("whatif/index.html", context)
 
 
 @router.get("/direct-manipulation")
@@ -525,16 +549,15 @@ async def direct_manipulation(
         if result_info["success"]:
             baseline_results[f"{service}.{law}"] = result_info
 
-    return templates.TemplateResponse(
-        "whatif/direct_manipulation.html",
+    context = get_base_template_context(request, bsn, machine_service)
+    context.update(
         {
-            "request": request,
-            "bsn": bsn,
             "slider_fields": slider_fields,
             "baseline_results": baseline_results,
             "discoverable_laws": discoverable_laws,
-        },
+        }
     )
+    return templates.TemplateResponse("whatif/direct_manipulation.html", context)
 
 
 @router.post("/calculate-direct")
@@ -599,17 +622,14 @@ async def calculate_direct(
 
 
 @router.get("/templates")
-async def template_scenarios(request: Request, bsn: str = "100000001"):
+async def template_scenarios(
+    request: Request, bsn: str = "100000001", machine_service: EngineInterface = Depends(get_machine_service)
+):
     """Pattern 2: Template scenarios for common life situations"""
 
-    return templates.TemplateResponse(
-        "whatif/templates.html",
-        {
-            "request": request,
-            "bsn": bsn,
-            "scenarios": SCENARIO_TEMPLATES,
-        },
-    )
+    context = get_base_template_context(request, bsn, machine_service)
+    context["scenarios"] = SCENARIO_TEMPLATES
+    return templates.TemplateResponse("whatif/templates.html", context)
 
 
 @router.get("/templates/{scenario_id}")
@@ -754,16 +774,15 @@ async def comparison_mode(
         if result_info["success"]:
             baseline_results[f"{service}.{law}"] = result_info
 
-    return templates.TemplateResponse(
-        "whatif/comparison.html",
+    context = get_base_template_context(request, bsn, machine_service)
+    context.update(
         {
-            "request": request,
-            "bsn": bsn,
             "fields": all_fields,
             "baseline_results": baseline_results,
             "discoverable_laws": discoverable_laws,
-        },
+        }
     )
+    return templates.TemplateResponse("whatif/comparison.html", context)
 
 
 @router.post("/comparison/calculate")
