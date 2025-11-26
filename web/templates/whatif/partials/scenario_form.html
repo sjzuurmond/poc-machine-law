@@ -17,23 +17,52 @@
     <input type="hidden" name="scenario_id" value="{{ scenario_id }}">
 
     {% if fields %}
+        <div class="mb-4 p-3 bg-blue-50 border-l-4 border-blue-500 rounded">
+            <p class="text-sm text-blue-800">
+                <svg class="inline w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                </svg>
+                Wijzig de velden hieronder om te zien wat het effect is op uw toeslagen. De huidige waarden zijn al ingevuld.
+            </p>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             {% for field_key, field_info in fields.items() %}
                 <div>
-                    <label for="{{ field_key }}" class="block text-sm font-medium text-gray-700 mb-1">
-                        {{ field_info.label }}
-                    </label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="{{ field_key }}" class="block text-sm font-medium text-gray-700">
+                            {{ field_info.label }}
+                        </label>
+                        {% if field_info.help_text %}
+                            <div class="relative group">
+                                <button type="button"
+                                        class="text-gray-400 hover:text-gray-600"
+                                        aria-label="Help voor {{ field_info.label }}">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                                <div class="invisible group-hover:visible absolute right-0 z-10 w-64 p-2 mt-1 text-xs text-white bg-gray-900 rounded-lg shadow-lg">
+                                    {{ field_info.help_text }}
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
 
                     {% if field_info.type == 'number' %}
                         <input type="number"
                                id="{{ field_key }}"
                                name="{{ field_key }}"
                                value="{{ field_info.value }}"
-                               placeholder="{{ field_info.value }}"
+                               placeholder="Voer nieuwe waarde in"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                        {% if field_info.value > 1000 %}
+                        {% if field_info.value and field_info.value > 1000 %}
                             <p class="text-xs text-gray-500 mt-1">
-                                Huidig: €{{ "%.2f"|format(field_info.value / 100) }}
+                                💡 Huidig: €{{ "%.2f"|format(field_info.value / 100) }}
+                            </p>
+                        {% elif field_info.value %}
+                            <p class="text-xs text-gray-500 mt-1">
+                                💡 Huidig: {{ field_info.value }}
                             </p>
                         {% endif %}
 
@@ -44,6 +73,9 @@
                             <option value="true" {% if field_info.value %}selected{% endif %}>Ja</option>
                             <option value="false" {% if not field_info.value %}selected{% endif %}>Nee</option>
                         </select>
+                        <p class="text-xs text-gray-500 mt-1">
+                            💡 Huidig: {% if field_info.value %}Ja{% else %}Nee{% endif %}
+                        </p>
 
                     {% elif field_info.type == 'date' %}
                         <input type="date"
@@ -51,14 +83,24 @@
                                name="{{ field_key }}"
                                value="{{ field_info.value }}"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                        {% if field_info.value %}
+                            <p class="text-xs text-gray-500 mt-1">
+                                💡 Huidig: {{ field_info.value }}
+                            </p>
+                        {% endif %}
 
                     {% else %}
                         <input type="text"
                                id="{{ field_key }}"
                                name="{{ field_key }}"
                                value="{{ field_info.value }}"
-                               placeholder="{{ field_info.value }}"
+                               placeholder="Voer nieuwe waarde in"
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                        {% if field_info.value %}
+                            <p class="text-xs text-gray-500 mt-1">
+                                💡 Huidig: {{ field_info.value }}
+                            </p>
+                        {% endif %}
                     {% endif %}
                 </div>
             {% endfor %}
@@ -78,7 +120,13 @@
         </div>
 
     {% else %}
-        <p class="text-gray-500 italic">Geen relevante velden gevonden voor dit scenario</p>
+        <div class="text-center py-8">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p class="mt-2 text-gray-500 italic">Geen relevante velden gevonden voor dit scenario</p>
+            <p class="text-sm text-gray-400 mt-1">Probeer een ander scenario of kies 'Aangepast scenario' voor alle velden</p>
+        </div>
     {% endif %}
 
     <!-- Calculating indicator -->

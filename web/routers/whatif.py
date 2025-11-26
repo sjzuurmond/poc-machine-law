@@ -153,6 +153,81 @@ def get_field_help_text(field_key: str) -> str:
     return "Vul de waarde in voor dit veld"
 
 
+def is_personal_field(field_key: str, prop_spec: dict[str, Any] | None) -> bool:
+    """
+    Check if a field represents personal/citizen data (not law parameters).
+
+    Args:
+        field_key: Field name
+        prop_spec: Property specification from rule spec
+
+    Returns:
+        True if this is a personal field that can be modified
+    """
+    field_key_lower = field_key.lower()
+
+    # Skip known law parameters/constants
+    skip_patterns = [
+        "grens",  # grensbedrag, grenswaarde, etc.
+        "drempel",
+        "percentage",
+        "factor",
+        "maximum",
+        "minimum",
+        "norm",
+        "tarief",
+        "toeslag_tabel",
+        "kwaliteitskortingsgrens",
+        "liberalisatiegrens",
+        "aftoppingsgrens",
+        "basisbedrag",  # Unless it's specifically for the person
+    ]
+
+    for pattern in skip_patterns:
+        if pattern in field_key_lower:
+            return False
+
+    # Include known personal data patterns
+    personal_patterns = [
+        "inkomen",
+        "vermogen",
+        "huur",
+        "partner",
+        "toeslagpartner",
+        "woonplaats",
+        "postcode",
+        "burgerlijk",
+        "gehuwd",
+        "samenwonen",
+        "kinderen",
+        "kind",
+        "leeftijd",
+        "adres",
+        "woning",
+        "loon",
+        "salaris",
+        "uitkering",
+        "pensioen",
+        "aow",
+        "eigenwoningforfait",
+        "hypotheekrente",
+    ]
+
+    for pattern in personal_patterns:
+        if pattern in field_key_lower:
+            return True
+
+    # Check if property spec indicates it's from a service (personal data source)
+    if prop_spec:
+        source = prop_spec.get("source", "")
+        if source and source != "law":  # If it comes from a service, it's personal data
+            return True
+
+    # Default: if numeric and not clearly a parameter, it might be personal
+    # But be conservative - only include if we're sure
+    return False
+
+
 def get_fields_from_law_inputs(
     bsn: str,
     laws: list[dict[str, str]],
@@ -161,6 +236,7 @@ def get_fields_from_law_inputs(
 ) -> dict[str, dict[str, Any]]:
     """
     Extract fields from law inputs that can be modified in whatif scenarios.
+    Only returns personal/citizen data fields, not law parameters.
 
     Args:
         bsn: Citizen identifier
@@ -203,6 +279,10 @@ def get_fields_from_law_inputs(
 
                 # Get property spec for this field
                 prop_spec = property_map.get(field_key)
+
+                # Skip law parameters - only include personal/citizen data
+                if not is_personal_field(field_key, prop_spec):
+                    continue
 
                 # Filter by keywords if specified
                 if focus_keywords:
@@ -709,24 +789,28 @@ async def calculate_template(
         law = law_info["law"]
         law_key = f"{service}.{law}"
 
-        # Baseline
+        # Baseline (always calculate)
         baseline = calculate_law_with_overwrite(bsn, service, law, {}, machine_service)
 
-        # Modified
+        if not baseline["success"]:
+            continue
+
+        # Modified (use overwrite if available, otherwise same as baseline)
         overwrite_input = overwrite_by_law.get(law_key, {})
-        if overwrite_input:  # Only calculate if there are changes for this law
-            modified = calculate_law_with_overwrite(bsn, service, law, overwrite_input, machine_service)
+        modified = calculate_law_with_overwrite(bsn, service, law, overwrite_input, machine_service)
 
-            if baseline["success"] and modified["success"]:
-                # Get primary output fields
-                baseline_output = get_primary_output_field(law, baseline["output"], machine_service)
-                modified_output = get_primary_output_field(law, modified["output"], machine_service)
+        if modified["success"]:
+            # Get primary output fields
+            baseline_output = get_primary_output_field(law, baseline["output"], machine_service)
+            modified_output = get_primary_output_field(law, modified["output"], machine_service)
 
-                # Calculate delta
-                baseline_value = baseline_output.get("value", 0) or 0
-                modified_value = modified_output.get("value", 0) or 0
-                delta = modified_value - baseline_value
+            # Calculate delta
+            baseline_value = baseline_output.get("value", 0) or 0
+            modified_value = modified_output.get("value", 0) or 0
+            delta = modified_value - baseline_value
 
+            # Only show in comparisons if this law produces a meaningful output
+            if baseline_value != 0 or modified_value != 0:
                 comparisons.append(
                     {
                         "service": service,
